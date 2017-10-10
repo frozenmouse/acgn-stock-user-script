@@ -27,8 +27,7 @@ const jsonUrl = "https://jsonbin.org/abcd1357/ACGNstock-company";
   setTimeout(addNavItems, 500); // 新增上方按鈕
   setTimeout(checkScriptEvent, 500); // 版本確認
   setTimeout(checkMingsScriptEvent, 500); // 版本確認
-  addEvent(); // 監聽main的變化並呼叫對應事件
-  //setTimeout(blockAds, 500);;
+  addPageEventListeners(); // 監聽main的變化並呼叫對應事件
 })();
 
 // Header新增按鈕並監聽
@@ -68,7 +67,7 @@ function addNavItems() {
 }
 
 // 監測main的變化並判斷當前屬於哪個頁面加入正確的事件監聽
-function addEvent() {
+function addPageEventListeners() {
   ACGNListener.AddCompanyListener(addCompanyClickListener); // 數據資訊
   ACGNListener.AddAccountInfoListener(AddTaxListener); // 稅率資料夾
   ACGNListener.AddAccountInfoListener(detectHoldStockInfo); // 持股資訊資料夾
