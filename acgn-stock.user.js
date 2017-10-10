@@ -17,9 +17,22 @@
 //兩個錯誤修正版本號防止迫不得已進位到次要版本號
 //版本更新會每十分鐘確認一次
 
-let jsonObj = null;
-
 const jsonUrl = "https://jsonbin.org/abcd1357/ACGNstock-company";
+
+const getJsonObj = (() => {
+  let jsonObjCache = null;
+
+  return () => {
+    // 考慮資料更新週期極長，已有資料就不用再拿了
+    if (jsonObjCache === null) {
+      const request = new XMLHttpRequest();
+      request.open("GET", jsonUrl, false); // 同步連線 GET 到該連線位址
+      request.send();
+      jsonObjCache = JSON.parse(request.responseText);
+    }
+    return jsonObjCache;
+  };
+})();
 
 // 程式進入點
 (function mainfunction() {
@@ -73,13 +86,6 @@ function addPageEventListeners() {
   ACGNListener.AddAccountInfoListener(detectHoldStockInfo); // 持股資訊資料夾
   ACGNListener.AddStockSummaryListener(addStockSummaryListener); //
   ACGNListener.AddFoundationListener(addFPEvent);
-}
-
-function getJsonObj() {
-  const request = new XMLHttpRequest();
-  request.open("GET", jsonUrl, false); // 同步連線 POST到該連線位址
-  request.send();
-  jsonObj = JSON.parse(request.responseText);
 }
 
 //---------------擋廣告---------------//
@@ -268,68 +274,64 @@ function removeAdditionalNumbersInfo() {
 }
 /************** 公司資訊 company detail ****************/
 
-/************accountInfo**************/
-/*************accountInfoStockPrice***/
-
+/************ 帳號資訊 accountInfo **************/
+/************* 持股資訊 & 金額試算 ***/
 function detectHoldStockInfo() {
-  if (jsonObj === null)
-    getJsonObj();
-  else {
-    let i;
-    let holdStockElement;
-    let companyLink;
-    let price;
-    let hold;
-    let index;
-    let total = 0;
-    let pageNum = 1;
+  const jsonObj = getJsonObj();
 
-    for (i = 0; i < 4 && i < $(".col-12.border-grid").length; ++i) {
-      // 持股資訊只有可能在前四個col-12 border-grid中 先找出來
-      if ($(".col-12.border-grid")[i].innerText.match(/擁有.+公司的.+股票/) !== null)
-        break;
-    }
-    if (i !== 4 && i !== $(".col-12.border-grid").length && $(".col-12.border-grid")[i].innerText.match(/參考股價/) === null) { // 持股資訊未開啟  或已插入資料
-      holdStockElement = $(".col-12.border-grid")[i];
-      for (i = 0; i < holdStockElement.children.length; ++i) {
-        if (holdStockElement.children[i].innerHTML.match(/href="(\/company[^"]+)/) !== null) {
-          companyLink = holdStockElement.children[i].innerHTML.match(/href="([^"]+)/)[1];
-          index = jsonObj.companys.findIndex(e => e.companyLink === companyLink);
-          if (index === -1) {
-            price = 0;
-            hold = 0;
-          } else {
-            price = Number(jsonObj.companys[index].companyPrice);
-            hold = Number(holdStockElement.children[i].innerText.match(/擁有.+公司的([0-9]+)股股票/)[1]);
-          }
-          total += price * hold;
-          holdStockElement.children[i].innerHTML += "參考股價" + price + "元，有" + price * hold + "元資產。";
-        }
-      }
-      if ($("#assetDisplayDiv").length === 0)
-        $("<div id=\"assetDisplayDiv\"><p>公司股價更新時間為" + jsonObj.updateTime + "</p><p>目前共有<span id=\"totalAsset\">0</span>元資產</p></div>").insertAfter(holdStockElement.children[i - 1]);
-      if ($(".page-item.active").length !== 0) // 看看是否能找出頁碼
-        pageNum = $(".page-item.active")[0].innerText;
-      $("#assetDisplayDiv")[0].innerHTML += "<p>第" + pageNum + "頁共有" + total + "元資產</p>";
-      $("#totalAsset")[0].innerText = (Number($("#totalAsset")[0].innerText) + total);
+  let i;
+  let holdStockElement;
+  let companyLink;
+  let price;
+  let hold;
+  let index;
+  let total = 0;
+  let pageNum = 1;
 
-      if ($("#clearAssetMessageBtn").length === 0) {
-        $("<button class=\"btn btn-danger btn-sm\" type=\"button\" id=\"clearAssetMessageBtn\">清除總資產訊息</button>").insertAfter(holdStockElement.children[i - 1]);
-        $("#clearAssetMessageBtn")[0].addEventListener("click", function() {
-          $("#assetDisplayDiv").remove();
-        });
-      }
-      if ($("#computeBtn").length === 0) {
-        $("<button class=\"btn btn-danger btn-sm\" type=\"button\" id=\"computeBtn\">計算此頁資產</button>").insertAfter(holdStockElement.children[i - 1]);
-        $("#computeBtn")[0].addEventListener("click", detectHoldStockInfo);
-      }
-    }
-    // console.log("Triggered ShowSubscribesListener");
+  for (i = 0; i < 4 && i < $(".col-12.border-grid").length; ++i) {
+    // 持股資訊只有可能在前四個col-12 border-grid中 先找出來
+    if ($(".col-12.border-grid")[i].innerText.match(/擁有.+公司的.+股票/) !== null)
+      break;
   }
+  if (i !== 4 && i !== $(".col-12.border-grid").length && $(".col-12.border-grid")[i].innerText.match(/參考股價/) === null) { // 持股資訊未開啟  或已插入資料
+    holdStockElement = $(".col-12.border-grid")[i];
+    for (i = 0; i < holdStockElement.children.length; ++i) {
+      if (holdStockElement.children[i].innerHTML.match(/href="(\/company[^"]+)/) !== null) {
+        companyLink = holdStockElement.children[i].innerHTML.match(/href="([^"]+)/)[1];
+        index = jsonObj.companys.findIndex(e => e.companyLink === companyLink);
+        if (index === -1) {
+          price = 0;
+          hold = 0;
+        } else {
+          price = Number(jsonObj.companys[index].companyPrice);
+          hold = Number(holdStockElement.children[i].innerText.match(/擁有.+公司的([0-9]+)股股票/)[1]);
+        }
+        total += price * hold;
+        holdStockElement.children[i].innerHTML += "參考股價" + price + "元，有" + price * hold + "元資產。";
+      }
+    }
+    if ($("#assetDisplayDiv").length === 0)
+      $("<div id=\"assetDisplayDiv\"><p>公司股價更新時間為" + jsonObj.updateTime + "</p><p>目前共有<span id=\"totalAsset\">0</span>元資產</p></div>").insertAfter(holdStockElement.children[i - 1]);
+    if ($(".page-item.active").length !== 0) // 看看是否能找出頁碼
+      pageNum = $(".page-item.active")[0].innerText;
+    $("#assetDisplayDiv")[0].innerHTML += "<p>第" + pageNum + "頁共有" + total + "元資產</p>";
+    $("#totalAsset")[0].innerText = (Number($("#totalAsset")[0].innerText) + total);
+
+    if ($("#clearAssetMessageBtn").length === 0) {
+      $("<button class=\"btn btn-danger btn-sm\" type=\"button\" id=\"clearAssetMessageBtn\">清除總資產訊息</button>").insertAfter(holdStockElement.children[i - 1]);
+      $("#clearAssetMessageBtn")[0].addEventListener("click", function() {
+        $("#assetDisplayDiv").remove();
+      });
+    }
+    if ($("#computeBtn").length === 0) {
+      $("<button class=\"btn btn-danger btn-sm\" type=\"button\" id=\"computeBtn\">計算此頁資產</button>").insertAfter(holdStockElement.children[i - 1]);
+      $("#computeBtn")[0].addEventListener("click", detectHoldStockInfo);
+    }
+  }
+
   if ($("#computeBtn").length === 0)
     setTimeout(detectHoldStockInfo, 500);
 }
-
 /*************accountInfoStockPrice***/
 
 /*************Tax*********************/
@@ -532,6 +534,8 @@ function showFPList() {
 /***********foundationPlanSearCompany*/
 
 function displayCompanyName(companys) {
+  const jsonObj = getJsonObj();
+
   let displayDiv = "<div id=\"displayResult\">";
   if (companys.length !== 0) {
     displayDiv += "<a href=\"" + companys[0].companyLink + "\">" + companys[0].companyName + "</a>";
@@ -552,6 +556,7 @@ function displayCompanyName(companys) {
 }
 
 function autoCheck() {
+  const jsonObj = getJsonObj();
   const searchString = $(".form-control")[0].value;
   const searchRegExp = new RegExp(searchString, "i"); // 'i' makes the RegExp ignore case
 
@@ -573,10 +578,7 @@ function autoCheck() {
 
 function addFormControlEvent() {
   $(".form-control").keyup(autoCheck);
-  // 考慮資料更新週期極長，已有資料就不用再拿了
-  if (jsonObj === null) {
-    getJsonObj();
-  }
+  getJsonObj();
 }
 
 
