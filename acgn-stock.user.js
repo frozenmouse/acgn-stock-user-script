@@ -24,36 +24,47 @@ const jsonUrl = "https://jsonbin.org/abcd1357/ACGNstock-company";
 // 程式進入點
 (function mainfunction() {
   //全域事件
-  setTimeout(addNavItem, 500); // 新增上方按鈕
+  setTimeout(addNavItems, 500); // 新增上方按鈕
   setTimeout(checkScriptEvent, 500); // 版本確認
   setTimeout(checkMingsScriptEvent, 500); // 版本確認
   addEvent(); // 監聽main的變化並呼叫對應事件
-  //setTimeout(blockAD, 500);;
+  //setTimeout(blockAds, 500);;
 })();
 
+// Header新增按鈕並監聽
+// 按鍵需要以倒序插入，後加的按鍵會排在左邊
+function addNavItems() {
+  const insertionTarget = $(".note")[2];
 
-//Header新增按鈕並監聽
-function addNavItem() {
-  /*
-  // 我的訂閱按鈕
-  $('<div class="note"><li class="nav-item dropdown"><a class="nav-link dropdown-toggle" href="" data-toggle="dropdown" id="subMenu">' + Dict[lan].showMySubscribes + '</a><div class="dropdown-menu px-3" aria-labelledby="navbarDropdownMenuLink" style="display: none;" id="subMenuList"></div></li></div>').insertAfter($('.note')[2]);
-  $('#subMenu')[0].addEventListener("click", ShowSubscribesNavItem);
-  */
-  // 選擇語言按鈕
-  $("<div class=\"note\"><li class=\"nav-item dropdown\"><a class=\"nav-link dropdown-toggle\" href=\"\" data-toggle=\"dropdown\">" + Dict[lan].language + "</a><div class=\"dropdown-menu px-3\" aria-labelledby=\"navbarDropdownMenuLink\" style=\"display: none;\" id=\"lanmenu\"></div></li></div>").insertAfter($(".note")[2]);
-  $("#lanmenu").append($("<li class=\"nav-item\"><a class=\"nav-link\" href=\"\" id=\"lantw\">台灣話</a></li><li class=\"nav-item\"><a class=\"nav-link\" href=\"\" id=\"lanmarstw\">ㄏㄒㄨ</a></li><li class=\"nav-item\"><a class=\"nav-link\" href=\"\" id=\"lanen\">English</a></li><li class=\"nav-item\"><a class=\"nav-link\" href=\"\" id=\"lanjp\">日本語</a></li>"));
-  $("#lantw")[0].addEventListener("click", () => { ChangeLanguage("tw"); });
-  $("#lanmarstw")[0].addEventListener("click", () => { ChangeLanguage("marstw"); });
-  $("#lanen")[0].addEventListener("click", () => { ChangeLanguage("en"); });
-  $("#lanjp")[0].addEventListener("click", () => { ChangeLanguage("jp"); });
+  // 關於插件
+  $(`<li class="nav-item"><a class="nav-link" href="#" id="about-script">${Dict[lan].aboutScript}</a></li>`)
+    .insertAfter(insertionTarget);
+  $("#about-script").on("click", GotoAboutMe);
 
-  // 關閉廣告按鈕
-  $("<li class=\"nav-item\"><a class=\"nav-link\" href=\"\" id=\"adsBlock\">" + Dict[lan].adBlock + "</a></li>").insertAfter($(".note")[2]);
-  $("#adsBlock")[0].addEventListener("click", blockAD);
+  // 選擇語言
+  $(`
+    <div class="note">
+      <li class="nav-item dropdown">
+        <a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown">${Dict[lan].language}</a>
+        <div class="dropdown-menu px-3" aria-labelledby="navbarDropdownMenuLink" style="display: none;" id="lang-menu"/>
+      </li>
+    </div>
+  `).insertAfter(insertionTarget);
+  $("#lang-menu").append($(`
+    <li class="nav-item"><a class="nav-link" href="#" id="lang-tw">台灣話</a></li>
+    <li class="nav-item"><a class="nav-link" href="#" id="lang-marstw">ㄏㄒㄨ</a></li>
+    <li class="nav-item"><a class="nav-link" href="#" id="lang-en">English</a></li>
+    <li class="nav-item"><a class="nav-link" href="#" id="lang-jp">日本語</a></li>
+  `));
+  $("#lang-tw").on("click", () => { ChangeLanguage("tw"); });
+  $("#lang-marstw").on("click", () => { ChangeLanguage("marstw"); });
+  $("#lang-en").on("click", () => { ChangeLanguage("en"); });
+  $("#lang-jp").on("click", () => { ChangeLanguage("jp"); });
 
-  // 關於插件按鈕
-  $("<li class=\"nav-item\"><a class=\"nav-link\" href=\"\" id=\"aboutmebtn\">" + Dict[lan].aboutScript + "</a></li>").insertAfter($(".note").last());
-  $("#aboutmebtn")[0].addEventListener("click", GotoAboutMe);
+  // 關閉廣告
+  $(`<li class="nav-item"><a class="nav-link" href="#" id="block-ads">${Dict[lan].blockAds}</a></li>`)
+    .insertAfter(insertionTarget);
+  $("#block-ads").on("click", blockAds);
 }
 
 // 監測main的變化並判斷當前屬於哪個頁面加入正確的事件監聽
@@ -72,13 +83,13 @@ function getJsonObj() {
 }
 
 //---------------擋廣告---------------//
-function blockAD() {
+function blockAds() {
   if ($(".fixed-bottom").length === 1) {
     // 自動對所有廣告點擊關閉
     $(".media.bg-info.text.px-2.py-1.my-2.rounded .d-flex a").click();
     console.log("Triggered BlockAD");
   } else {
-    setTimeout(blockAD, 500);
+    setTimeout(blockAds, 500);
   }
 }
 
@@ -828,7 +839,7 @@ function ChangeLanguage(l) {
 const Dict = {
   tw: {
     language: "選擇語言",
-    adBlock: "關閉廣告",
+    blockAds: "關閉廣告",
     aboutScript: "關於插件",
     updateScript: "更新腳本",
     totalAssetsInThisPage: "本頁股票總值：",
@@ -849,7 +860,7 @@ const Dict = {
   },
   en: {
     language: "language",
-    adBlock: "Block Ad",
+    blockAds: "Block Ad",
     aboutScript: "About Script",
     updateScript: "Update Script",
     totalAssetsInThisPage: "Total assets in this page :",
@@ -869,7 +880,7 @@ const Dict = {
   },
   jp: {
     language: "言語を選択",
-    adBlock: "広告を閉じる",
+    blockAds: "広告を閉じる",
     aboutScript: "プラグインについて",
     updateScript: "スクリプトを更新する",
     totalAssetsInThisPage: "このページの株式時価総額：",
@@ -889,7 +900,7 @@ const Dict = {
   },
   marstw: {
     language: "顯4ㄉ語言",
-    adBlock: "關ㄅ廣告",
+    blockAds: "關ㄅ廣告",
     aboutScript: "我做ㄌ什麼",
     updateScript: "有☆版",
     totalAssetsInThisPage: "這一ya的股票一共ㄉ錢：",
