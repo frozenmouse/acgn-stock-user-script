@@ -7,7 +7,7 @@
 // @match        http://acgn-stock.com/*
 // @match        https://acgn-stock.com/*
 // @grant        none
-// @require      https://greasyfork.org/scripts/33945-acgn-stock%E8%82%A1%E7%A5%A8%E4%BA%8B%E4%BB%B6%E7%9B%A3%E8%81%BD/code/ACGN-Stock%E8%82%A1%E7%A5%A8%E4%BA%8B%E4%BB%B6%E7%9B%A3%E8%81%BD.js?version=222901
+// @require      https://raw.githubusercontent.com/frozenmouse/acgn-stock-user-script/master/acgn-stock-listener.js
 // ==/UserScript==
 
 //版本號為'主要版本號 + "." + 次要版本號 + 錯誤修正版本號(兩位)，ex 1.801
