@@ -84,13 +84,9 @@ function getJsonObj() {
 
 //---------------擋廣告---------------//
 function blockAds() {
-  if ($(".fixed-bottom").length === 1) {
-    // 自動對所有廣告點擊關閉
-    $(".media.bg-info.text.px-2.py-1.my-2.rounded .d-flex a").click();
-    console.log("Triggered BlockAD");
-  } else {
-    setTimeout(blockAds, 500);
-  }
+  console.log("blockAds");
+  // 自動對所有廣告點擊關閉
+  $(".fixed-bottom .media.bg-info.text.px-2.py-1.my-2.rounded .d-flex a").click();
 }
 
 /*************************************/
