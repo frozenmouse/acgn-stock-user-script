@@ -1,0 +1,30 @@
+{
+  "env": {
+    "browser": true,
+    "es6": true,
+    "jquery": true,
+    "greasemonkey": true
+  },
+  "globals": {
+    "ACGNListener": true
+  },
+  "extends": "eslint:recommended",
+  "parserOptions": {
+    "sourceType": "module"
+  },
+  "rules": {
+    "eqeqeq": ["error", "always"],
+    "indent": ["error", 2],
+    "linebreak-style": ["error", "unix"],
+    "no-console": "off",
+    "no-var": "error",
+    "one-var": ["error", "never"],
+    "one-var-declaration-per-line": ["error", "always"],
+    "prefer-const": ["error", {
+      "destructuring": "any",
+      "ignoreReadBeforeAssign": false
+    }],
+    "quotes": ["error", "double"],
+    "semi": ["error", "always"]
+  }
+}
