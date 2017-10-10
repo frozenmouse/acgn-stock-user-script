@@ -91,13 +91,11 @@ class ACGNClass {
     this.EventList[eventIndex].AddEventListner(callback);
   }
 }
-let ACGNListener;
-(function(){
-  ACGNListener = new ACGNClass();
-})();
+const ACGNListener = new ACGNClass();
+
 ////////////以上為程式碼，以下為使用範例
-(function(){
-  console.log("ACGN-Stock股票事件監聽");
+function ListenerDebugMode(){
+  console.log("ACGN-Stock股票事件監聽開啟除錯模式");
 
   //新增監聽
   ACGNListener.AddCompanyListener(function(){console.log("AddCompanyListener");});
@@ -106,7 +104,7 @@ let ACGNListener;
   ACGNListener.AddFoundationListener(function(){console.log("AddFoundationListener");});
 
   //註冊客製化事件，輸入網址辨識片段
-  const seasonalReportEventindex = ACGNListener.AddCutsomEvent(new BaseEvent(/seasonalReport/));
+  let seasonalReportEventindex = ACGNListener.AddCutsomEvent(new BaseEvent(/seasonalReport/));
   //新增客製化事件監聽
   ACGNListener.AddCutsomListener(seasonalReportEventindex, function(){console.log("AddSeasonalReportListener");});
-})();
+}
