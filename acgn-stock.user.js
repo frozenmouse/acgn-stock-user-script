@@ -133,64 +133,54 @@ function checkMingsScriptVersion() {
 
 /************UpdateScript*************/
 /*************************************/
-/************stockSummary*************/
 
+/************ 股市總覽 *************/
 function addStockSummaryListener() {
   computeAssets();
-  // $(".btn.btn-secondary.mr-1").each((i, e) => e.addEventListener("click", addComputeEvent));
-  // $(".page-item").each((i, e) => e.addEventListener("click", addComputeEvent));
   console.log("Triggered StockSummary");
 }
-//
-// function addComputeEvent() {
-//   setTimeout(addStockSummaryListener, 2000);
-// }
 
 function computeAssets() {
   let assets = 0;
-  // var tag;
-  let price;
-  let hold;
-  let classAssets;
 
-  //方格模式
-  if ($(".col-12.col-md-6.col-lg-4.col-xl-3").length > 0) {
-    for (let i = 0; i < $(".company-card").length; ++i) {
-      price = Number($(".company-card")[i].innerText.match(/\$ [0-9]+\(([0-9]+)\)/)[1]);
-      hold = Number($(".company-card")[i].innerText.match(/([0-9]+).+%.+/)[1]);
-      assets += price * hold;
-      console.log("price = " + price + ",hold = " + hold);
-    }
-    console.log("本頁持股價值: " + assets);
-    classAssets = $("#totalAssetsNumber");
-    if (classAssets.length === 0) {
-      $("<div class=\"media company-summary-item border-grid-body\" id = \"totalAssets\"><div class=\"col-6 text-right border-grid\" id = \"totalAssetsTitle\"><h2>" + Dict[lan].totalAssetsInThisPage + "</h2></div></div>").insertAfter($(".card-title.mb-1")[0]);
-      $("<div class=\"col-6 text-right border-grid\" id = \"totalAssetsNumber\"><h2>$ " + assets + "</h2></div>").insertAfter($("#totalAssetsTitle")[0]);
-    } else {
-      $("#totalAssetsNumber")[0].innerHTML = "<h2>$ " + assets + "</h2>";
-    }
-  } else { //列表模式
-    //console.log($(".col-8.col-lg-3.text-right.border-grid"));
-    for (let j = 0; j < $(".media-body.row.border-grid-body").length; ++j) {
-      price = Number($(".media-body.row.border-grid-body")[j].innerText.match(/\$ [0-9]+\(([0-9]+)\)/)[1]);
-      hold = Number($(".media-body.row.border-grid-body")[j].innerText.match(/您在該公司持有([0-9]+)數量的股份/)[1]); // 找出持股量
-      console.log("價= " + price + ",持= " + hold + ",總= " + (price * hold));
-      assets += price * hold;
-    }
-    console.log("本頁持股價值: " + assets);
-    classAssets = $("#totalAssetsNumber");
-    if (classAssets.length === 0) {
-      $("<div class=\"media company-summary-item border-grid-body\" id = \"totalAssets\"><div class=\"col-6 text-right border-grid\" id = \"totalAssetsTitle\"><h2>" + Dict[lan].totalAssetsInThisPage + "</h2></div></div>").insertAfter($(".card-title.mb-1")[0]);
-      $("<div class=\"col-6 text-right border-grid\" id = \"totalAssetsNumber\"><h2>$ " + assets + "</h2></div>").insertAfter($("#totalAssetsTitle")[0]);
-    } else {
-      $("#totalAssetsNumber")[0].innerHTML = "<h2>$ " + assets + "</h2>";
-    }
+  const isInCardMode = $(".col-12.col-md-6.col-lg-4.col-xl-3").length > 0;
+
+  if (isInCardMode) {
+    // 卡片模式
+    $(".company-card").each((i, e) => {
+      const price = Number(e.innerText.match(/\$ [0-9]+\(([0-9]+)\)/)[1]);
+      const hold = Number(e.innerText.match(/([0-9]+).+%.+/)[1]);
+      const subtotal = price * hold;
+      console.log(`價=${price}, 持=${hold}, 總=${subtotal}`);
+      assets += subtotal;
+    });
+  } else {
+    // 列表模式
+    $(".media-body.row.border-grid-body").each((i, e) => {
+      const price = Number(e.innerText.match(/\$ [0-9]+\(([0-9]+)\)/)[1]);
+      const hold = Number(e.innerText.match(/您在該公司持有([0-9]+)數量的股份/)[1]);
+      const subtotal = price * hold;
+      console.log(`價=${price}, 持=${hold}, 總=${subtotal}`);
+      assets += subtotal;
+    });
   }
-  //setTimeout(computeAssets, 1000);
-}
 
-/************stockSummary*************/
-/*************************************/
+  console.log("本頁持股價值: " + assets);
+  if ($("#totalAssetsNumber").length === 0) {
+    $(`
+      <div class="media company-summary-item border-grid-body" id="totalAssets">
+        <div class="col-6 text-right border-grid" id="totalAssetsTitle">
+          <h2>${Dict[lan].totalAssetsInThisPage}</h2>
+        </div>
+      </div>
+    `).insertAfter($(".card-title.mb-1")[0]);
+    $(`<div class="col-6 text-right border-grid" id="totalAssetsNumber"/>`)
+      .insertAfter($("#totalAssetsTitle")[0]);
+  }
+  $("#totalAssetsNumber")[0].innerHTML = `<h2>$ ${assets}</h2>`;
+}
+/************ 股市總覽 *************/
+
 /**************company****************/
 //---------------按鍵區---------------//
 function addCompanyClickListener() {
