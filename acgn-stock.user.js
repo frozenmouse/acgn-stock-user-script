@@ -130,7 +130,7 @@ function checkMingsScriptVersion() {
 /************UpdateScript*************/
 /*************************************/
 
-/************ 股市總覽 *************/
+/************ 股市總覽 stock summary *************/
 function addStockSummaryListener() {
   computeAssets();
   console.log("Triggered StockSummary");
@@ -175,147 +175,100 @@ function computeAssets() {
   }
   $("#totalAssetsNumber")[0].innerHTML = `<h2>$ ${assets}</h2>`;
 }
-/************ 股市總覽 *************/
+/************ 股市總覽 stock summary *************/
 
-/**************company****************/
-//---------------按鍵區---------------//
+/************** 公司資訊 company detail ****************/
+// 資料夾名稱，對照 data-toggle-panel 屬性
+const companyDetailFolderNames = [
+  "chart",      // 股價趨勢
+  "numbers",    // 數據資訊
+  "order",      // 交易訂單
+  "products",   // 產品中心
+  "director",   // 董事會
+  "log",        // 所有紀錄
+];
+
+// 資料夾開 / 關時的 callback
+const companyDetailFolderCallbacks = {
+  "numbers": {
+    "open": () => {
+      console.log("Open numbers folder");
+      addAdditionalNumbersData();
+    },
+    "close": () => {
+      console.log("Close numbers folder");
+      removeAdditionalNumbersInfo();
+    },
+  },
+};
+
+function onCompanyDetailFolderStateChanged(folderName, isOpen) {
+  console.log(`folder ${folderName}, isOpen: ${isOpen}`);
+  if (companyDetailFolderCallbacks[folderName] !== undefined) {
+    const callback = companyDetailFolderCallbacks[folderName][isOpen ? "open" : "close"];
+    if (callback !== undefined) callback();
+  }
+}
+
 function addCompanyClickListener() {
-  if ($(".d-block.h4").length === 6) {
-    // 初始化 先看使用者有沒有預設打開資料夾
-    folderOpenString = "fa-folder-open";
-    folderCloseString = "12345678";
-    chartEvent();
-    numbersEvent();
-    orderEvent();
-    productEvent();
-    directorEvent();
-    logEvent();
-    folderOpenString = "fa-folder";
-    folderCloseString = "fa-folder-open";
+  if ($(".d-block.h4").length === companyDetailFolderNames.length) {
+    const folderOpenClass = "fa-folder-open";
+    const folderCloseClass = "fa-folder";
 
-    // 註冊事件
-    $(".d-block.h4")[0].addEventListener("click", chartEvent); //股價趨勢
-    $(".d-block.h4")[1].addEventListener("click", numbersEvent); //數據資訊
-    $(".d-block.h4")[2].addEventListener("click", orderEvent); //交易訂單
-    $(".d-block.h4")[3].addEventListener("click", productEvent); //產品中心
-    $(".d-block.h4")[4].addEventListener("click", directorEvent); //董事會
-    $(".d-block.h4")[5].addEventListener("click", logEvent); //所有紀錄
-    console.log("OnclickListener Registered");
+    $(".d-block.h4").each((i, e) => {
+      function checkFolderState() {
+        const folderIcon = $(e).find("i");
+        if (folderIcon.hasClass(folderOpenClass)) {
+          onCompanyDetailFolderStateChanged(companyDetailFolderNames[i], true);
+        } else if (folderIcon.hasClass(folderCloseClass)) {
+          onCompanyDetailFolderStateChanged(companyDetailFolderNames[i], false);
+        }
+      }
+
+      checkFolderState(); // 先 check 一次
+      e.addEventListener("click", () => setTimeout(checkFolderState, 0)); // click 時等待更新後再 check 一次
+    });
   } else {
     setTimeout(addCompanyClickListener, 500);
   }
   console.log("Triggered Company");
 }
 
-let folderOpenString;
-let folderCloseString;
-// 股價趨勢
-function chartEvent() {
-  const folderstate = $(".d-block.h4 i")[0].classList[1];
-  if (folderstate === folderOpenString) {
-    //console.log("Open");
-    //Open Event
-  } else if (folderstate === folderCloseString) {
-    //Close Event
-  }
-}
-// 數據資訊
-function numbersEvent() {
-  const folderstate = $(".d-block.h4 i")[1].classList[1];
-  if (folderstate === folderOpenString) {
-    //Open Event
-    console.log("Open numbersfolder");
-    setTimeout(addSomeInfo, 1000);
-
-  } else if (folderstate === folderCloseString) {
-    //Close Event
-    console.log("close numbersfolder");
-    deleteSomeInfo();
-  }
-}
-// 交易訂單
-function orderEvent() {
-  const folderstate = $(".d-block.h4 i")[2].classList[1];
-  if (folderstate === folderOpenString) {
-    //console.log("Open");
-    //Open Event
-  } else if (folderstate === folderCloseString) {
-    //Close Event
-  }
-}
-// 產品中心
-function productEvent() {
-  const folderstate = $(".d-block.h4 i")[3].classList[1];
-  if (folderstate === folderOpenString) {
-    //console.log("Open");
-    //Open Event
-  } else if (folderstate === folderCloseString) {
-    //Close Event
-  }
-}
-// 董事會
-function directorEvent() {
-  const folderstate = $(".d-block.h4 i")[4].classList[1];
-  if (folderstate === folderOpenString) {
-    //console.log("Open");
-    //Open Event
-  } else if (folderstate === folderCloseString) {
-    //Close Event
-  }
-}
-// 所有紀錄
-function logEvent() {
-  const folderstate = $(".d-block.h4 i")[5].classList[1];
-  if (folderstate === folderOpenString) {
-    //console.log("Open");
-    //Open Event
-  } else if (folderstate === folderCloseString) {
-    //Close Event
-  }
-}
 // 計算每股盈餘、本益比、益本比並顯示
-function addSomeInfo() {
-  const stockPrice = $(".col-8.col-md-4.col-lg-2.text-right.border-grid")[0].innerHTML.match(/[0-9]+/);
-  const revenue = $(".col-8.col-md-4.col-lg-2.text-right.border-grid")[3].innerHTML.match(/[0-9]+/);
-  const totalStock = $(".col-8.col-md-4.col-lg-2.text-right.border-grid")[4].innerHTML.match(/[0-9]+/);
+function addAdditionalNumbersData() {
+  const dataValueCells = $(".col-8.col-md-4.col-lg-2.text-right.border-grid");
+
+  const stockPrice = Number(dataValueCells[0].innerHTML.match(/[0-9]+/));
+  const revenue = Number(dataValueCells[3].innerHTML.match(/[0-9]+/));
+  const totalStock = Number(dataValueCells[4].innerHTML.match(/[0-9]+/));
+
   const earnPerShare = 0.8075 * revenue / totalStock;
+  const PERatio = earnPerShare === 0 ? Infinity : stockPrice / earnPerShare;
+  const benefitRatio = earnPerShare / stockPrice;
 
-  if ($("#someInfo1").length !== 1) { // 防止雞巴人的雞巴操作:快速連續開關資料夾導致出現多組每股盈餘
-    $("<div class=\"col-8 col-md-4 col-lg-2 text-right border-grid\" id = \"someInfo5\">" + (earnPerShare / stockPrice).toFixed(2) + "</div>").insertAfter($(".row.border-grid-body")[0].children[14 + $("canvas").length]);
-    $("<div class=\"col-4 col-md-2 col-lg-2 text-right border-grid\" id = \"someInfo6\">" + Dict[lan].benefitRatio + "</div>").insertAfter($(".row.border-grid-body")[0].children[14 + $("canvas").length]);
+  function insertData(id, name, value) {
+    $("[data-toggle-panel=numbers]").parent().nextUntil(".col-12.border-grid").last()
+      .after(`
+        <div id="${id}" class="col-4 col-md-2 col-lg-2 text-right border-grid">${name}</div>
+        <div id="${id}-value" class="col-8 col-md-4 col-lg-2 text-right border-grid">${value}</div>
+      `);
+  }
 
-    $("<div class=\"col-8 col-md-4 col-lg-2 text-right border-grid\" id = \"someInfo1\">" + ((earnPerShare === 0) ? "∞" : (stockPrice / earnPerShare).toFixed(2)) + "</div>").insertAfter($(".row.border-grid-body")[0].children[14 + $("canvas").length]);
-    $("<div class=\"col-4 col-md-2 col-lg-2 text-right border-grid\" id = \"someInfo2\">" + Dict[lan].PERatio + "</div>").insertAfter($(".row.border-grid-body")[0].children[14 + $("canvas").length]);
-
-    $("<div class=\"col-8 col-md-4 col-lg-2 text-right border-grid\" id = \"someInfo3\">" + earnPerShare.toFixed(2) + "</div>").insertAfter($(".row.border-grid-body")[0].children[14 + $("canvas").length]);
-    $("<div class=\"col-4 col-md-2 col-lg-2 text-right border-grid\" id = \"someInfo4\">" + Dict[lan].earnPerShare + "</div>").insertAfter($(".row.border-grid-body")[0].children[14 + $("canvas").length]);
-
+  if ($("#benefit-ratio").length === 0) {
+    insertData("earn-per-share", Dict[lan].earnPerShare, earnPerShare.toFixed(2));
+    insertData("pe-ratio", Dict[lan].PERatio, PERatio === Infinity ? "∞" : PERatio.toFixed(2));
+    insertData("benefit-ratio", Dict[lan].benefitRatio, benefitRatio.toFixed(2));
     console.log("addSomeInfo!!");
   }
 }
+
 // 清出額外新增的資訊
-function deleteSomeInfo() {
-  if ($("#someInfo1").length !== 1) // 無資料不須清除
-    return;
-  let element = document.getElementById("someInfo1");
-  element.parentNode.removeChild(element);
-  element = document.getElementById("someInfo2");
-  element.parentNode.removeChild(element);
-  element = document.getElementById("someInfo3");
-  element.parentNode.removeChild(element);
-  element = document.getElementById("someInfo4");
-  element.parentNode.removeChild(element);
-  element = document.getElementById("someInfo5");
-  element.parentNode.removeChild(element);
-  element = document.getElementById("someInfo6");
-  element.parentNode.removeChild(element);
-
+function removeAdditionalNumbersInfo() {
+  $("#earn-per-share, #earn-per-share-value, #pe-ratio, #pe-ratio-value, #benefit-ratio, #benefit-ratio-value").remove();
 }
+/************** 公司資訊 company detail ****************/
 
-/**************company****************/
-/*************************************/
 /************accountInfo**************/
-
 /*************accountInfoStockPrice***/
 
 function detectHoldStockInfo() {
@@ -534,7 +487,7 @@ function addFPEvent() {
   $(".btn.btn-secondary.mr-1")[0].addEventListener("click", () => {
     setTimeout(addFPEvent, 1000);
   }, {
-    once: true
+    once: true,
   });
   const linkitem = $(".pagination.pagination-sm.justify-content-center.mt-1 a");
   const count = linkitem.length;
@@ -542,7 +495,7 @@ function addFPEvent() {
     linkitem[i].addEventListener("click", () => {
       setTimeout(addFPEvent, 1000);
     }, {
-      once: true
+      once: true,
     });
   }
   console.log("Triggered PFEvent");
@@ -903,6 +856,6 @@ const Dict = {
     unsubscribe: "不訂閱這ㄍ工ㄙ",
     showMySubscribes: "窩ㄉ訂閱",
     goToCompany: "窩要ㄑ找",
-  }
+  },
 };
 /*************Language****************/

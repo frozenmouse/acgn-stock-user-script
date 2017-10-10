@@ -13,6 +13,7 @@
     "sourceType": "module"
   },
   "rules": {
+    "comma-dangle": ["error", "always-multiline"],
     "eqeqeq": ["error", "always"],
     "indent": ["error", 2],
     "linebreak-style": ["error", "unix"],
