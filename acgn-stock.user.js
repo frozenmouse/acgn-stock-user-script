@@ -82,8 +82,8 @@ function addNavItems() {
 // 監測main的變化並判斷當前屬於哪個頁面加入正確的事件監聽
 function addPageEventListeners() {
   ACGNListener.AddCompanyListener(addCompanyClickListener); // 數據資訊
-  ACGNListener.AddAccountInfoListener(AddTaxListener); // 稅率資料夾
-  ACGNListener.AddAccountInfoListener(detectHoldStockInfo); // 持股資訊資料夾
+  ACGNListener.AddAccountInfoListener(addTaxListener); // 稅率資料夾
+  ACGNListener.AddAccountInfoListener(detectOwnStockInfo); // 持股資訊資料夾
   ACGNListener.AddStockSummaryListener(addStockSummaryListener); //
   ACGNListener.AddFoundationListener(addFPEvent);
 }
@@ -274,102 +274,86 @@ function removeAdditionalNumbersInfo() {
 }
 /************** 公司資訊 company detail ****************/
 
-/************ 帳號資訊 accountInfo **************/
+/************ 帳號資訊 account info **************/
 /************* 持股資訊 & 金額試算 ***/
-function detectHoldStockInfo() {
+function detectOwnStockInfo() {
   const jsonObj = getJsonObj();
 
-  let i;
-  let holdStockElement;
-  let companyLink;
-  let price;
-  let hold;
-  let index;
+  const ownStockList = $("[data-toggle-panel=stock]").parent().next().children().filter((i, e) => e.innerHTML.match(/擁有.+公司的.+股票/));
+  if (ownStockList.length === 0) return;  // 持股資訊未開啟 or 無資料
+
+  if ($("#compute-btn").length === 0) {
+    $(`<button class="btn btn-danger btn-sm" type="button" id="compute-btn">計算此頁資產</button>`)
+      .on("click", detectOwnStockInfo)
+      .insertAfter($("[data-toggle-panel=stock]").parent().next().children().last());
+  }
+
+  if ($("#clear-asset-message-btn").length === 0) {
+    $(`<button class="btn btn-danger btn-sm" type="button" id="clear-asset-message-btn">清除總資產訊息</button>`)
+      .on("click", () => $("#asset-display-div").remove())
+      .insertAfter($("[data-toggle-panel=stock]").parent().next().children().last());
+  }
+
+  if ($("#asset-display-div").length === 0) {
+    $(`
+      <div id="asset-display-div">
+        <p>公司股價更新時間為 ${jsonObj.updateTime}</p>
+        <p>目前共有<span id="total-asset">0</span>元資產</p>
+      </div>
+    `).insertAfter($("[data-toggle-panel=stock]").parent().next().children().last());
+  }
+
   let total = 0;
-  let pageNum = 1;
+  ownStockList.each((i, e) => {
+    const companyLinkMatchResult = e.innerHTML.match(/href="([^"]+)/);
+    if (!companyLinkMatchResult) return;
 
-  for (i = 0; i < 4 && i < $(".col-12.border-grid").length; ++i) {
-    // 持股資訊只有可能在前四個col-12 border-grid中 先找出來
-    if ($(".col-12.border-grid")[i].innerText.match(/擁有.+公司的.+股票/) !== null)
-      break;
-  }
-  if (i !== 4 && i !== $(".col-12.border-grid").length && $(".col-12.border-grid")[i].innerText.match(/參考股價/) === null) { // 持股資訊未開啟  或已插入資料
-    holdStockElement = $(".col-12.border-grid")[i];
-    for (i = 0; i < holdStockElement.children.length; ++i) {
-      if (holdStockElement.children[i].innerHTML.match(/href="(\/company[^"]+)/) !== null) {
-        companyLink = holdStockElement.children[i].innerHTML.match(/href="([^"]+)/)[1];
-        index = jsonObj.companys.findIndex(e => e.companyLink === companyLink);
-        if (index === -1) {
-          price = 0;
-          hold = 0;
-        } else {
-          price = Number(jsonObj.companys[index].companyPrice);
-          hold = Number(holdStockElement.children[i].innerText.match(/擁有.+公司的([0-9]+)股股票/)[1]);
-        }
-        total += price * hold;
-        holdStockElement.children[i].innerHTML += "參考股價" + price + "元，有" + price * hold + "元資產。";
-      }
-    }
-    if ($("#assetDisplayDiv").length === 0)
-      $("<div id=\"assetDisplayDiv\"><p>公司股價更新時間為" + jsonObj.updateTime + "</p><p>目前共有<span id=\"totalAsset\">0</span>元資產</p></div>").insertAfter(holdStockElement.children[i - 1]);
-    if ($(".page-item.active").length !== 0) // 看看是否能找出頁碼
-      pageNum = $(".page-item.active")[0].innerText;
-    $("#assetDisplayDiv")[0].innerHTML += "<p>第" + pageNum + "頁共有" + total + "元資產</p>";
-    $("#totalAsset")[0].innerText = (Number($("#totalAsset")[0].innerText) + total);
+    const companyData = jsonObj.companys.find(e => e.companyLink === companyLinkMatchResult[1]);
+    if (!companyData) return;
 
-    if ($("#clearAssetMessageBtn").length === 0) {
-      $("<button class=\"btn btn-danger btn-sm\" type=\"button\" id=\"clearAssetMessageBtn\">清除總資產訊息</button>").insertAfter(holdStockElement.children[i - 1]);
-      $("#clearAssetMessageBtn")[0].addEventListener("click", function() {
-        $("#assetDisplayDiv").remove();
-      });
-    }
-    if ($("#computeBtn").length === 0) {
-      $("<button class=\"btn btn-danger btn-sm\" type=\"button\" id=\"computeBtn\">計算此頁資產</button>").insertAfter(holdStockElement.children[i - 1]);
-      $("#computeBtn")[0].addEventListener("click", detectHoldStockInfo);
-    }
-  }
+    const price = Number(companyData.companyPrice);
+    const amount = Number(e.innerHTML.match(/([0-9]+)股/)[1]);
+    const subtotal = price * amount;
+    total += subtotal;
 
-  if ($("#computeBtn").length === 0)
-    setTimeout(detectHoldStockInfo, 500);
+    if (!e.innerHTML.match(/參考股價/)) {
+      e.innerHTML += `參考股價 ${price} 元，有 ${subtotal} 元資產。`;
+    }
+  });
+
+  const pageNum = $(".page-item.active")[0].innerText;
+  $("#asset-display-div")[0].innerHTML += `<p>第 ${pageNum} 頁共有 ${total} 元資產</p>`;
+  $("#total-asset")[0].innerText = (Number($("#total-asset")[0].innerText) + total);
 }
-/*************accountInfoStockPrice***/
 
-/*************Tax*********************/
-function AddTaxListener() {
-  $("<div class=\"row border-grid-body\" style=\"margin-top: 15px;\"><div class=\"col-12 border-grid\" id=\"customtax\"><a class=\"d-block h4\" href=\"\" data-toggle-panel=\"customTax\">" + Dict[lan].taxCalculation + "<i class=\"fa fa-folder\" aria-hidden=\"true\"></i></a></div></div>").insertAfter($(".row.border-grid-body")[0]);
-  if ($("#customtax").length > 0) {
-    $("#customtax")[0].addEventListener("click", taxfolderevent);
-    taxfoldericon = $("#customtax .fa")[0];
-  } else {
-    setTimeout(AddTaxListener, 500);
-  }
+/************* 稅率試算 *********************/
+function addTaxListener() {
+  $(`
+    <div class="row border-grid-body" style="margin-top: 15px;">
+      <div class="col-12 border-grid" id="custom-tax">
+        <a class="d-block h4" href="" data-toggle-panel="custom-tax">
+          ${Dict[lan].taxCalculation} <i class="fa fa-folder" aria-hidden="true"/>
+        </a>
+      </div>
+    </div>
+  `).insertAfter($(".row.border-grid-body")[0]);
+  $("#custom-tax").on("click", onAccountInfoTaxFolderClicked);
   console.log("Triggered Tax");
-
 }
 
-let taxfoldericon;
-let taxtxt;
-let taxinpt;
-let taxvalue;
+function onAccountInfoTaxFolderClicked() {
+  const taxFolderIcon = $("#custom-tax .fa");
 
-function taxfolderevent() {
-
-  if (taxfoldericon.classList[1] === "fa-folder") {
-    taxfoldericon.classList.remove("fa-folder");
-    taxfoldericon.classList.add("fa-folder-open");
-    taxtxt = $("<div class=\"col-6 text-right border-grid\" id = \"taxtext\"><h5>" + Dict[lan].enterTotalAssets + "</h5></div>");
-    taxtxt.insertAfter($("#customtax")[0]);
-    taxinpt = $("<div class=\"col-6 text-right border-grid\" id = \"taxinputrect\"><input id=\"input-text\" class=\"form-control\" type=\"text\"></div>");
-    taxinpt.insertAfter($("#taxtext")[0]);
-    taxvalue = $("<div class=\"col-6 text-right border-grid\" id = \"outputtext\"><h5>" + Dict[lan].yourTax + "</h5></div><div class=\"col-6 text-right border-grid\" id = \"outputdiv\"><h5 id=\"output\">$ " + 0 + "</h5></div>");
-    taxvalue.insertAfter($("#taxinputrect")[0]);
-    $("#input-text").bind("input", computeTax);
+  if (taxFolderIcon.hasClass("fa-folder")) {
+    taxFolderIcon.addClass("fa-folder-open").removeClass("fa-folder");
+    $(`
+      <div class="col-6 text-right border-grid" id="tax-input-holder"><input id="tax-input-text" class="form-control" type="text"></div>
+      <div class="col-6 text-right border-grid" id="tax-output-holder"><h5>${Dict[lan].yourTax} <span id="tax-output">$ 0</span></h5></div>
+    `).insertAfter($("#custom-tax"));
+    $("#tax-input-text").on("input", computeTax);
   } else {
-    taxfoldericon.classList.add("fa-folder");
-    taxfoldericon.classList.remove("fa-folder-open");
-    taxtxt.remove();
-    taxinpt.remove();
-    taxvalue.remove();
+    taxFolderIcon.addClass("fa-folder").removeClass("fa-folder-open");
+    $("#tax-input-holder, #tax-output-holder").remove();
   }
 }
 
@@ -378,7 +362,7 @@ const taxalllimit = 1000000;
 const taxpecent = 0.03;
 
 function computeTax() {
-  let input = $("#input-text").val().match(/[0-9]+/);
+  let input = $("#tax-input-text").val().match(/[0-9]+/);
   console.log(input);
   if (!input || 0 === input.length) {
     console.log("N");
@@ -387,7 +371,7 @@ function computeTax() {
   let output = 0;
   let lastlimit = 0;
 
-  for (let i = 0;; i++) {
+  for (let i = 0; ; i++) {
     let limit = taxalllimit;
     let tax = taxpecent * i;
     if (i < taxlimit.length) {
@@ -408,15 +392,11 @@ function computeTax() {
       }
     }
   }
-  $("#output").text("$ " + Math.ceil(output));
-
+  $("#tax-output").text("$ " + Math.ceil(output));
 }
-/*************Tax*********************/
+/************ 帳號資訊 account info **************/
 
-/************accountInfo**************/
-/*************************************/
 /************foundationPlan***********/
-
 /***********foundationPlanInformation*/
 
 function getStockPrice(i, cardmode = true) {
