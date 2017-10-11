@@ -357,42 +357,25 @@ function onAccountInfoTaxFolderClicked() {
   }
 }
 
-const taxlimit = [10000, 100000, 500000, 1000000];
-const taxalllimit = 1000000;
-const taxpecent = 0.03;
+// 稅率表：資產上限、稅率、累進差額
+const taxRateTable = [
+  { asset: 10000, rate: 0, adjustment: 0 },
+  { asset: 100000, rate: 0.03, adjustment: 300 },
+  { asset: 500000, rate: 0.06, adjustment: 3300 },
+  { asset: 1000000, rate: 0.09, adjustment: 18300 },
+  { asset: 2000000, rate: 0.12, adjustment: 48300 },
+  { asset: 3000000, rate: 0.15, adjustment: 108300 },
+  { asset: 4000000, rate: 0.18, adjustment: 198300 },
+  { asset: 5000000, rate: 0.21, adjustment: 318300 },
+  // 暫時的 fallback，有需要再把整個表補完
+  { asset: Infinity, rate: NaN, adjustment: NaN },
+];
 
 function computeTax() {
-  let input = $("#tax-input-text").val().match(/[0-9]+/);
-  console.log(input);
-  if (!input || 0 === input.length) {
-    console.log("N");
-    return;
-  }
-  let output = 0;
-  let lastlimit = 0;
-
-  for (let i = 0; ; i++) {
-    let limit = taxalllimit;
-    let tax = taxpecent * i;
-    if (i < taxlimit.length) {
-      limit = taxlimit[i] - lastlimit;
-    }
-    if (tax > 0.6) {
-      tax = 0.6;
-      output += input * tax;
-      break;
-    } else {
-      if (input < limit) {
-        output += input * tax;
-        break;
-      } else {
-        output += limit * tax;
-        input -= limit;
-        lastlimit += limit;
-      }
-    }
-  }
-  $("#tax-output").text("$ " + Math.ceil(output));
+  const input = Number($("#tax-input-text").val().match(/[0-9]+/));
+  const { rate, adjustment } = taxRateTable.find(e => input < e.asset);
+  const output = Math.ceil(input * rate - adjustment);
+  $("#tax-output").text(`$ ${output}`);
 }
 /************ 帳號資訊 account info **************/
 
