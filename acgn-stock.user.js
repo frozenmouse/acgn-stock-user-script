@@ -38,8 +38,7 @@ const getJsonObj = (() => {
 (function mainfunction() {
   //全域事件
   setTimeout(addNavItems, 500); // 新增上方按鈕
-  setTimeout(checkScriptEvent, 500); // 版本確認
-  setTimeout(checkMingsScriptEvent, 500); // 版本確認
+  setTimeout(checkScriptUpdates, 500);
   addPageEventListeners(); // 監聽main的變化並呼叫對應事件
 })();
 
@@ -98,41 +97,33 @@ function blockAds() {
 /*************************************/
 /************UpdateScript*************/
 
-function checkScriptEvent() {
-  // var myVersion = GM_info.script.version;
-  const oReq = new XMLHttpRequest();
-  oReq.addEventListener("load", checkScriptVersion);
-  oReq.open("GET", "https://greasyfork.org/zh-TW/scripts/33359-acgn%E8%82%A1%E7%A5%A8%E7%B3%BB%E7%B5%B1%E6%AF%8F%E8%82%A1%E7%87%9F%E5%88%A9%E5%A4%96%E6%8E%9B.json");
-  oReq.send();
+const updateScriptCheckInterval = 600000; // 10 minutes
+
+function checkScriptUpdates() {
+  checkGreasyForkScriptUpdate("33359"); // papago
+  checkGreasyForkScriptUpdate("33781"); // Ming
+  checkGreasyForkScriptUpdate("33814"); // frozenmouse
+  setTimeout(checkScriptUpdates, updateScriptCheckInterval);
 }
 
-function checkMingsScriptEvent() {
-  const oReq2 = new XMLHttpRequest();
-  oReq2.addEventListener("load", checkMingsScriptVersion);
-  oReq2.open("GET", "https://greasyfork.org/zh-TW/scripts/33781-acgn%E8%82%A1%E7%A5%A8%E7%B3%BB%E7%B5%B1%E6%AF%8F%E8%82%A1%E7%87%9F%E5%88%A9%E5%A4%96%E6%8E%9B.json");
-  oReq2.send();
-}
+function checkGreasyForkScriptUpdate(id) {
+  const scriptUrl = `https://greasyfork.org/zh-TW/scripts/${id}`;
+  const request = new XMLHttpRequest();
 
-function checkScriptVersion() {
-  const obj = JSON.parse(this.responseText);
-  const myVersion = GM_info.script.version;
-  //console.log(obj.version.substr(0, 3) + "," + myVersion.substr(0, 3) + "," + (obj.version.substr(0, 3) > myVersion.substr(0, 3)));
-  if (obj.version.substr(0, 3) > myVersion.substr(0, 3))
-    $("<li class=\"nav-item\"><a class=\"nav-link btn btn-primary\" href=\"https://greasyfork.org/zh-TW/scripts/33359-acgn%E8%82%A1%E7%A5%A8%E7%B3%BB%E7%B5%B1%E6%AF%8F%E8%82%A1%E7%87%9F%E5%88%A9%E5%A4%96%E6%8E%9B\" id=\"UpdateScript\" target=\"Blank\">" + dict[currentLanguage].updateScript + "</a></li>").insertAfter($(".nav-item")[$(".nav-item").length - 1]);
-  else
-    setTimeout(checkScriptEvent, 600000);
+  request.open("GET", `${scriptUrl}.json`);
+  request.addEventListener("load", function() {
+    const remoteVersion = JSON.parse(this.responseText).version;
+    const myVersion = GM_info.script.version;
+    if (remoteVersion.substr(0, 3) > myVersion.substr(0, 3) && $(`update-script-button-greasy-${id}`).length !== 0) {
+      $(`
+        <li class="nav-item">
+          <a class="nav-link btn btn-primary" href="${scriptUrl}" id="update-script-button-greasy-${id}" target="_blank">${t("updateScript")}</a>
+        </li>
+      `).insertAfter($(".nav-item").last());
+    }
+  });
+  request.send();
 }
-
-function checkMingsScriptVersion() {
-  const obj = JSON.parse(this.responseText);
-  const myVersion = GM_info.script.version;
-  //console.log(obj.version.substr(0, 3) + "," + myVersion.substr(0, 3) + "," + (obj.version.substr(0, 3) > myVersion.substr(0, 3)));
-  if (obj.version.substr(0, 3) > myVersion.substr(0, 3))
-    $("<li class=\"nav-item\"><a class=\"nav-link btn btn-primary\" href=\"https://greasyfork.org/zh-TW/scripts/33781-acgn%E8%82%A1%E7%A5%A8%E7%B3%BB%E7%B5%B1%E6%AF%8F%E8%82%A1%E7%87%9F%E5%88%A9%E5%A4%96%E6%8E%9B\" id=\"UpdateScript\" target=\"Blank\">" + dict[currentLanguage].updateScript + "</a></li>").insertAfter($(".nav-item")[$(".nav-item").length - 1]);
-  else
-    setTimeout(checkMingsScriptEvent, 600000);
-}
-
 /************UpdateScript*************/
 /*************************************/
 
