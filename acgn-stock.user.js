@@ -51,7 +51,7 @@ function addNavItems() {
   // 關於插件
   $(`<li class="nav-item"><a class="nav-link" href="#" id="about-script">${Dict[lan].aboutScript}</a></li>`)
     .insertAfter(insertionTarget);
-  $("#about-script").on("click", GotoAboutMe);
+  $("#about-script").on("click", showAboutScript);
 
   // 選擇語言
   $(`
@@ -490,181 +490,118 @@ function addFoundationPlanEvents() {
 /************ 新創計劃 foundation plan ***********/
 
 /**************aboutMe****************/
-function GotoAboutMe() {
+
+function showAboutScript() {
   $(".card-block").remove();
-  SetAboutMeString();
-  console.log("Triggered AboutMe");
+  $(".card").append(`
+    <div class="card-block">
+      <div class="col-5"><h1 class="card-title mb-1">關於插件</h1></div>
+      <div class="col-5">by papago89, Ming, frozenmouse</div>
+      <div class="col-12">
+        <hr>
+        <p>要離開本頁面記得點進來的那一頁以外的其他頁面</p>
+        <hr>
+        <p>
+          本插件功能不定時增加中，目前功能有以下幾個：
+          <ul>
+            <li>在頁面<span class="text-info">股市總覽</span>可以查看本頁股票總值，建議開啟<span class="text-info">只列出我所持有的股票</span></li>
+            <li>在頁面<span class="text-info">新創計畫</span>可以查看推測股價、推測股權、推測應得股數</li>
+            <li>在頁面<span class="text-info">新創計畫</span>搜尋欄鍵入文字時會提示股市總覽中是否已存在相同名稱或標籤之公司</li>
+            <li>在各公司頁面數據資訊處增加每股盈餘、本益比、益本比</li>
+            <li>在頁面<span class="text-info">帳號資訊</span>增加稅金試算，輸入總資產後就會算出你應該繳的稅金</li>
+            <li>在頁面<span class="text-info">帳號資訊</span>增加資產換算</li>
+            <li>按鈕<span class="text-info">廣告關閉</span>隱藏所有廣告讓你什麼都看不到</li>
+            <li>在頁面<span class="text-info">關於插件</span>增加插件功能介紹，版本更新紀錄，還有廢話</li>
+            <li>按鈕<span class="text-info">點我更新插件</span>在greasyfork有新版本時會自動跳出提示大家更新</li>
+            <li>按鈕<span class="text-info">選擇語言</span>可以更改語言，不過要重新整理頁面才會生效</li>
+          </ul>
+        </p>
+        <hr>
+        <p>有任何問題或建議請到Discord:ACGN Stock留言</p>
+        <p><a href="https://greasyfork.org/zh-TW/scripts/33359-acgn%E8%82%A1%E7%A5%A8%E7%B3%BB%E7%B5%B1%E6%AF%8F%E8%82%A1%E7%87%9F%E5%88%A9%E5%A4%96%E6%8E%9B" target="_blank">更新插件</a></p>
+      </div>
+    </div>
 
+    <div class="card-block">
+      <div class="row border-grid-body" style="margin-top: 15px;">
+        <div class="col-12 border-grid" id="release-history-folder">
+          <a class="d-block h4" href="" data-toggle-panel="update">更新紀錄 <i class="fa fa-folder" aria-hidden="true" /></a>
+        </div>
+      </div>
+    </div>
+  `);
+
+  const releaseHistoryFolder = $("#release-history-folder");
+  releaseHistoryFolder.on("click", () => {
+    const releaseHistoryFolderIcon = releaseHistoryFolder.find(".fa");
+    if (releaseHistoryFolderIcon.hasClass("fa-folder")) {
+      releaseHistoryFolderIcon.removeClass("fa-folder").addClass("fa-folder-open");
+      releaseHistoryFolder.after((releaseHistoryList.map(({ version, description }) => createReleaseHistoryDiv(version, description)).join("")));
+    } else {
+      releaseHistoryFolderIcon.removeClass("fa-folder-open").addClass("fa-folder");
+      releaseHistoryFolder.nextAll(".col-12.border-grid").remove();
+    }
+  });
 }
 
+const releaseHistoryList = [
+  {
+    version: "2.500",
+    description: `<p><span class="text-info">更新腳本</span>連動到Ming，現在Ming也可以自己發布新版腳本讓大家更新了。</p>`,
+  }, {
+    version: "2.300",
+    description: `<p>移除<span class="text-info">訂閱</span>功能</p>`,
+  }, {
+    version: "2.200",
+    description: `
+      <p>新增<span class="text-info">新創搜尋提示</span>功能</p>
+      <p>新增<span class="text-info">帳號頁面持股換算資產</span>功能</p>
+    `,
+  }, {
+    version: "2.000",
+    description: `<p>新增<span class="text-info">訂閱</span>功能</p>`,
+  }, {
+    version: "1.900",
+    description: `<p>新增<span class="text-info">選擇語言</span></p>`,
+  }, {
+    version: "1.800",
+    description: `<p>新增<span class="text-info">點我更新插件</span>按鈕</p>`,
+  }, {
+    version: "1.73",
+    description: `
+      <p><span class="text-info">更新插件</span>連結現在會在新分頁開啟連結，讓原本的頁面可以繼續看股票。</p>
+      <p>修正<span class="text-info">關於插件</span>中，更新紀錄排序錯亂的問題。</p>
+      <p>新增<span class="text-info">新創計畫</span>下，列表模式的推測股價、推測股權、推測應得股數。</p>
+      <p>優化一些日誌顯示，讓開發人員在除錯更方便一些。</p>
+    `,
+  }, {
+    version: "1.72",
+    description: `
+      <p>優化<span class="text-info">廣告關閉</span>功能。</p>
+      <p>好像還有新增一些功能什麼的。</p>
+    `,
+  }, {
+    version: "1.70",
+    description: `<p>新增功能<span class="text-info">廣告關閉</span>將會隱藏所有廣告，按過後只要不關閉頁面你就再也看不到任何廣告了，包含公告以及新發布的廣告。</p>`,
+  }, {
+    version: "1.63",
+    description: `<p>修正<span class="text-info">股市總覽</span>中列表模式如果出現有交易尚未完成會造成計算錯誤</p>`,
+  }, {
+    version: "1.62",
+    description: `<p>新增頁面<span class="text-info">關於插件</span></p>`,
+  }, {
+    version: "1.61以前",
+    description: `<p>新增了一些功能，不過不是很重要</p>`,
+  },
+];
 
-
-let aboutmestr;
-
-function SetAboutMeString() {
-  aboutmestr = "<div class=\"card-block\"><div class=\"col-5\"><h1 class=\"card-title mb-1\">關於插件</h1></div><div class=\"col-5\">by papago89 and Ming</div><hr>";
-
-  aboutmestr += div("要離開本頁面記得點進來的那一頁以外的其他頁面<hr>");
-  aboutmestr += div("本插件功能不定時增加中，目前功能有以下幾個：");
-  aboutmestr += div("");
-  aboutmestr += div("。在頁面<span class=\"text-info\">股市總覽</span>可以查看本頁股票總值，建議開啟<span class=\"text-info\">只列出我所持有的股票</span>。");
-  aboutmestr += div("。在頁面<span class=\"text-info\">新創計畫</span>可以查看推測股價、推測股權、推測應得股數。");
-  aboutmestr += div("。在頁面<span class=\"text-info\">新創計畫</span>搜尋欄鍵入文字時會提示股市總覽中是否已存在相同名稱或標籤之公司。");
-  aboutmestr += div("。在各公司頁面數據資訊處增加每股盈餘、本益比、益本比。");
-  aboutmestr += div("。在頁面<span class=\"text-info\">帳號資訊</span>增加稅金試算，輸入總資產後就會算出你應該繳的稅金。");
-  aboutmestr += div("。在頁面<span class=\"text-info\">帳號資訊</span>增加資產換算。");
-  aboutmestr += div("。按鈕<span class=\"text-info\">廣告關閉</span>隱藏所有廣告讓你什麼都看不到。");
-  aboutmestr += div("。在頁面<span class=\"text-info\">關於插件</span>增加插件功能介紹，版本更新紀錄，還有廢話。");
-  aboutmestr += div("。按鈕<span class=\"text-info\">點我更新插件</span>在greasyfork有新版本時會自動跳出提示大家更新。");
-  aboutmestr += div("。按鈕<span class=\"text-info\">選擇語言</span>可以更改語言，不過要重新整理頁面才會生效。");
-  // aboutmestr += div('。各公司頁面可以透過按鈕<span class="text-info">訂閱公司</span>訂閱，在頁面<span class="text-info">帳號資訊</span>可以直接前往已訂閱的公司。');
-
-  aboutmestr += div("<hr>");
-  aboutmestr += div("有任何問題或建議請到Discord:ACGN Stock留言");
-  aboutmestr += div("<a href=\"https://greasyfork.org/zh-TW/scripts/33359-acgn%E8%82%A1%E7%A5%A8%E7%B3%BB%E7%B5%B1%E6%AF%8F%E8%82%A1%E7%87%9F%E5%88%A9%E5%A4%96%E6%8E%9B\" target=\"_blank\">更新插件</a>");
-
-  aboutmestr += "</div>";
-  aboutmestr += "<div class=\"card-block\"><div class=\"row border-grid-body\" style=\"margin-top: 15px;\"><div class=\"col-12 border-grid\" id=\"customupdate\"><a class=\"d-block h4\" href=\"\" data-toggle-panel=\"update\">更新紀錄<i class=\"fa fa-folder\" aria-hidden=\"true\"></i></a></div></div></div>";
-  $(".card").append($(aboutmestr));
-  $("#customupdate")[0].addEventListener("click", UpdateEvent);
-  updatefoldericon = $("#customupdate .fa")[0];
-}
-const totaldivcount = 0;
-
-function div(str) {
-  return "<div id=\"customdiv" + totaldivcount + "\">" + str + "</div>";
-}
-
-
-let updatefoldericon;
-
-function UpdateEvent() {
-
-  if (updatefoldericon.classList[1] === "fa-folder") {
-    updatefoldericon.classList.remove("fa-folder");
-    updatefoldericon.classList.add("fa-folder-open");
-    V_2_500();
-    V_2_300();
-    V_2_200();
-    V_2_000();
-    V_1_900();
-    V_1_900();
-    V_1_800();
-    V_1_73();
-    V_1_72();
-    V_1_70();
-    V_1_63();
-    V_1_62();
-    V_1_61before();
-  } else {
-    updatefoldericon.classList.add("fa-folder");
-    updatefoldericon.classList.remove("fa-folder-open");
-    $(".col-12.border-grid:gt(0)").remove();
-  }
-  console.log("Triggered UpdateInfo");
-
-}
-
-function V_2_500() {
-  const vid = addversion(2, 500);
-  const vtext = div("<span class=\"text-info\">更新腳本</span>連動到Ming，現在Ming也可以自己發布新版腳本讓大家更新了。");
-
-  $("#" + vid).append($(vtext));
-}
-
-function V_2_300() {
-  const vid = addversion(2, 300);
-  const vtext = div("移除<span class=\"text-info\">訂閱</span>功能");
-
-
-  $("#" + vid).append($(vtext));
-}
-
-function V_2_200() {
-  const vid = addversion(2, 200);
-  let vtext = div("新增<span class=\"text-info\">新創搜尋提示</span>功能");
-  vtext += div("新增<span class=\"text-info\">帳號頁面持股換算資產</span>功能");
-
-
-  $("#" + vid).append($(vtext));
-}
-
-function V_2_000() {
-  const vid = addversion(2, 0);
-  const vtext = div("新增<span class=\"text-info\">訂閱</span>功能");
-
-
-  $("#" + vid).append($(vtext));
-}
-
-function V_1_900() {
-  const vid = addversion(1, 900);
-  const vtext = div("新增<span class=\"text-info\">選擇語言</span>");
-
-
-  $("#" + vid).append($(vtext));
-}
-
-function V_1_800() {
-  const vid = addversion(1, 800);
-  const vtext = div("新增<span class=\"text-info\">點我更新插件</span>按鈕");
-
-
-  $("#" + vid).append($(vtext));
-}
-
-function V_1_73() {
-  const vid = addversion(1, 73);
-  let vtext = div("<span class=\"text-info\">更新插件</span>連結現在會在新分頁開啟連結，讓原本的頁面可以繼續看股票。");
-  vtext += div("修正<span class=\"text-info\">關於插件</span>中，更新紀錄排序錯亂的問題。");
-  vtext += div("新增<span class=\"text-info\">新創計畫</span>下，列表模式的推測股價、推測股權、推測應得股數。");
-  vtext += div("優化一些日誌顯示，讓開發人員在除錯更方便一些。");
-
-
-  $("#" + vid).append($(vtext));
-}
-
-function V_1_72() {
-  const vid = addversion(1, 72);
-  let vtext = div("優化<span class=\"text-info\">廣告關閉</span>功能。");
-  vtext += div("好像還有新增一些功能什麼的。");
-  $("#" + vid).append($(vtext));
-}
-
-function V_1_70() {
-  const vid = addversion(1, 70);
-  const vtext = div("新增功能<span class=\"text-info\">廣告關閉</span>將會隱藏所有廣告，按過後只要不關閉頁面你就再也看不到任何廣告了，包含公告以及新發布的廣告。");
-  $("#" + vid).append($(vtext));
-
-}
-
-function V_1_63() {
-  const vid = addversion(1, 63);
-  const vtext = div("修正<span class=\"text-info\">股市總覽</span>中列表模式如果出現有交易尚未完成會造成計算錯誤");
-  $("#" + vid).append($(vtext));
-
-}
-
-function V_1_62() {
-  const vid = addversion(1, 62);
-  const vtext = div("新增頁面<span class=\"text-info\">關於插件</span>");
-  //vtext += div('隨便一些字');
-  $("#" + vid).append($(vtext));
-
-}
-
-function V_1_61before() {
-  $("<div class=\"col-12 border-grid\" id=\"V1_61before\"><h4>版本1.61以前：</h4><div id=\"customdiv0\">新增了一些功能，不過不是很重要</div></div>").insertAfter($(".col-12.border-grid")[$(".col-12.border-grid").length - 1]);
-}
-
-function addversion(majorV, minorV) {
-  const vtext = "<div class=\"col-12 border-grid\" id = \"V" + majorV + "_" + minorV + "\"><h4>版本" + majorV + "." + minorV + "：</h4></div>";
-  if ($(".col-12.border-grid").length > 0) {
-    $(vtext).insertAfter($(".col-12.border-grid")[$(".col-12.border-grid").length - 1]);
-  } else {
-    $(vtext).insertAfter($("#customupdate")[0]);
-  }
-  return "V" + majorV + "_" + minorV;
+function createReleaseHistoryDiv(version, description) {
+  return `
+    <div class="col-12 border-grid">
+      <h4>版本${version}：</h4>
+      ${description}
+    </div>
+  `;
 }
 
 /**************aboutMe****************/
