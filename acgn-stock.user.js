@@ -113,8 +113,12 @@ function checkGreasyForkScriptUpdate(id) {
   request.open("GET", `${scriptUrl}.json`);
   request.addEventListener("load", function() {
     const remoteVersion = JSON.parse(this.responseText).version;
-    const myVersion = GM_info.script.version;
-    if (remoteVersion.substr(0, 3) > myVersion.substr(0, 3) && $(`update-script-button-greasy-${id}`).length !== 0) {
+    const localVersion = GM_info.script.version;
+
+    console.log(`檢查 GreasyFork 腳本版本：id = ${id}, remoteVersion = ${remoteVersion}, localVersion = ${localVersion}`);
+
+    // 版本號 a.bcc，只有 a 或 b 變動才通知更新
+    if (remoteVersion.substr(0, 3) > localVersion.substr(0, 3) && $(`update-script-button-greasy-${id}`).length === 0) {
       $(`
         <li class="nav-item">
           <a class="nav-link btn btn-primary" href="${scriptUrl}" id="update-script-button-greasy-${id}" target="_blank">${t("updateScript")}</a>
