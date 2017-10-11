@@ -49,7 +49,7 @@ function addNavItems() {
   const insertionTarget = $(".note")[2];
 
   // 關於插件
-  $(`<li class="nav-item"><a class="nav-link" href="#" id="about-script">${Dict[lan].aboutScript}</a></li>`)
+  $(`<li class="nav-item"><a class="nav-link" href="#" id="about-script">${t("aboutScript")}</a></li>`)
     .insertAfter(insertionTarget);
   $("#about-script").on("click", showAboutScript);
 
@@ -57,7 +57,7 @@ function addNavItems() {
   $(`
     <div class="note">
       <li class="nav-item dropdown">
-        <a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown">${Dict[lan].language}</a>
+        <a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown">${t("language")}</a>
         <div class="dropdown-menu px-3" aria-labelledby="navbarDropdownMenuLink" style="display: none;" id="lang-menu"/>
       </li>
     </div>
@@ -68,13 +68,13 @@ function addNavItems() {
     <li class="nav-item"><a class="nav-link" href="#" id="lang-en">English</a></li>
     <li class="nav-item"><a class="nav-link" href="#" id="lang-jp">日本語</a></li>
   `));
-  $("#lang-tw").on("click", () => { ChangeLanguage("tw"); });
-  $("#lang-marstw").on("click", () => { ChangeLanguage("marstw"); });
-  $("#lang-en").on("click", () => { ChangeLanguage("en"); });
-  $("#lang-jp").on("click", () => { ChangeLanguage("jp"); });
+  $("#lang-tw").on("click", () => { changeLanguage("tw"); });
+  $("#lang-marstw").on("click", () => { changeLanguage("marstw"); });
+  $("#lang-en").on("click", () => { changeLanguage("en"); });
+  $("#lang-jp").on("click", () => { changeLanguage("jp"); });
 
   // 關閉廣告
-  $(`<li class="nav-item"><a class="nav-link" href="#" id="block-ads">${Dict[lan].blockAds}</a></li>`)
+  $(`<li class="nav-item"><a class="nav-link" href="#" id="block-ads">${t("blockAds")}</a></li>`)
     .insertAfter(insertionTarget);
   $("#block-ads").on("click", blockAds);
 }
@@ -118,7 +118,7 @@ function checkScriptVersion() {
   const myVersion = GM_info.script.version;
   //console.log(obj.version.substr(0, 3) + "," + myVersion.substr(0, 3) + "," + (obj.version.substr(0, 3) > myVersion.substr(0, 3)));
   if (obj.version.substr(0, 3) > myVersion.substr(0, 3))
-    $("<li class=\"nav-item\"><a class=\"nav-link btn btn-primary\" href=\"https://greasyfork.org/zh-TW/scripts/33359-acgn%E8%82%A1%E7%A5%A8%E7%B3%BB%E7%B5%B1%E6%AF%8F%E8%82%A1%E7%87%9F%E5%88%A9%E5%A4%96%E6%8E%9B\" id=\"UpdateScript\" target=\"Blank\">" + Dict[lan].updateScript + "</a></li>").insertAfter($(".nav-item")[$(".nav-item").length - 1]);
+    $("<li class=\"nav-item\"><a class=\"nav-link btn btn-primary\" href=\"https://greasyfork.org/zh-TW/scripts/33359-acgn%E8%82%A1%E7%A5%A8%E7%B3%BB%E7%B5%B1%E6%AF%8F%E8%82%A1%E7%87%9F%E5%88%A9%E5%A4%96%E6%8E%9B\" id=\"UpdateScript\" target=\"Blank\">" + dict[currentLanguage].updateScript + "</a></li>").insertAfter($(".nav-item")[$(".nav-item").length - 1]);
   else
     setTimeout(checkScriptEvent, 600000);
 }
@@ -128,7 +128,7 @@ function checkMingsScriptVersion() {
   const myVersion = GM_info.script.version;
   //console.log(obj.version.substr(0, 3) + "," + myVersion.substr(0, 3) + "," + (obj.version.substr(0, 3) > myVersion.substr(0, 3)));
   if (obj.version.substr(0, 3) > myVersion.substr(0, 3))
-    $("<li class=\"nav-item\"><a class=\"nav-link btn btn-primary\" href=\"https://greasyfork.org/zh-TW/scripts/33781-acgn%E8%82%A1%E7%A5%A8%E7%B3%BB%E7%B5%B1%E6%AF%8F%E8%82%A1%E7%87%9F%E5%88%A9%E5%A4%96%E6%8E%9B\" id=\"UpdateScript\" target=\"Blank\">" + Dict[lan].updateScript + "</a></li>").insertAfter($(".nav-item")[$(".nav-item").length - 1]);
+    $("<li class=\"nav-item\"><a class=\"nav-link btn btn-primary\" href=\"https://greasyfork.org/zh-TW/scripts/33781-acgn%E8%82%A1%E7%A5%A8%E7%B3%BB%E7%B5%B1%E6%AF%8F%E8%82%A1%E7%87%9F%E5%88%A9%E5%A4%96%E6%8E%9B\" id=\"UpdateScript\" target=\"Blank\">" + dict[currentLanguage].updateScript + "</a></li>").insertAfter($(".nav-item")[$(".nav-item").length - 1]);
   else
     setTimeout(checkMingsScriptEvent, 600000);
 }
@@ -172,7 +172,7 @@ function computeAssets() {
     $(`
       <div class="media company-summary-item border-grid-body" id="totalAssets">
         <div class="col-6 text-right border-grid" id="totalAssetsTitle">
-          <h2>${Dict[lan].totalAssetsInThisPage}</h2>
+          <h2>${t("totalAssetsInThisPage")}</h2>
         </div>
       </div>
     `).insertAfter($(".card-title.mb-1")[0]);
@@ -261,9 +261,9 @@ function addAdditionalNumbersData() {
   }
 
   if ($("#benefit-ratio").length === 0) {
-    insertData("earn-per-share", Dict[lan].earnPerShare, earnPerShare.toFixed(2));
-    insertData("pe-ratio", Dict[lan].PERatio, PERatio === Infinity ? "∞" : PERatio.toFixed(2));
-    insertData("benefit-ratio", Dict[lan].benefitRatio, benefitRatio.toFixed(2));
+    insertData("earn-per-share", dict[currentLanguage].earnPerShare, earnPerShare.toFixed(2));
+    insertData("pe-ratio", dict[currentLanguage].PERatio, PERatio === Infinity ? "∞" : PERatio.toFixed(2));
+    insertData("benefit-ratio", dict[currentLanguage].benefitRatio, benefitRatio.toFixed(2));
     console.log("addSomeInfo!!");
   }
 }
@@ -332,7 +332,7 @@ function addTaxListener() {
     <div class="row border-grid-body" style="margin-top: 15px;">
       <div class="col-12 border-grid" id="custom-tax">
         <a class="d-block h4" href="" data-toggle-panel="custom-tax">
-          ${Dict[lan].taxCalculation} <i class="fa fa-folder" aria-hidden="true"/>
+          ${t("taxCalculation")} <i class="fa fa-folder" aria-hidden="true"/>
         </a>
       </div>
     </div>
@@ -348,7 +348,7 @@ function onAccountInfoTaxFolderClicked() {
     taxFolderIcon.addClass("fa-folder-open").removeClass("fa-folder");
     $(`
       <div class="col-6 text-right border-grid" id="tax-input-holder"><input id="tax-input-text" class="form-control" type="text"></div>
-      <div class="col-6 text-right border-grid" id="tax-output-holder"><h5>${Dict[lan].yourTax} <span id="tax-output">$ 0</span></h5></div>
+      <div class="col-6 text-right border-grid" id="tax-output-holder"><h5>${t("yourTax")} <span id="tax-output">$ 0</span></h5></div>
     `).insertAfter($("#custom-tax"));
     $("#tax-input-text").on("input", computeTax);
   } else {
@@ -432,26 +432,26 @@ function addAdditionalFoundationPlanInfo() {
     if (inCardMode) {
       $(`
         <div name="foundationPlanNewInfo" class="row row-info d-flex justify-content-between">
-          <p>${Dict[lan].foundationPlanStockPrice}</p>
+          <p>${t("foundationPlanStockPrice")}</p>
           <p>$${stockPrice}</p>
         </div>
         <div name="foundationPlanNewInfo" class="row row-info d-flex justify-content-between">
-          <p>${Dict[lan].foundationPlanShare}</p>
+          <p>${t("foundationPlanShare")}</p>
           <p>${Math.floor(stockAmount)}股</p>
         </div>
         <div name="foundationPlanNewInfo" class="row row-info d-flex justify-content-between">
-          <p>${Dict[lan].foundationPlanStock}</p>
+          <p>${t("foundationPlanStock")}</p>
           <p>${(stockRight * 100).toFixed(2)}%</p>
         </div>
       `).insertAfter($(".company-card-mask")[i].children[5]);
     } else {
       $(`
         <div name="foundationPlanNewInfo" class="col-4 col-lg-6 text-right border-grid" />
-        <div name="foundationPlanNewInfo" class="col-4 col-lg-3 text-right border-grid">${Dict[lan].foundationPlanStockPrice}</div>
+        <div name="foundationPlanNewInfo" class="col-4 col-lg-3 text-right border-grid">${t("foundationPlanStockPrice")}</div>
         <div class="col-8 col-lg-3 text-right border-grid" id="customStockPrice${i}">$${stockPrice}</div>
-        <div name="foundationPlanNewInfo" class="col-4 col-lg-3 text-right border-grid">${Dict[lan].foundationPlanShare}</div>
+        <div name="foundationPlanNewInfo" class="col-4 col-lg-3 text-right border-grid">${t("foundationPlanShare")}</div>
         <div class="col-8 col-lg-3 text-right border-grid" id="customStockAmount${i}">${Math.floor(stockAmount)}股</div>
-        <div name="foundationPlanNewInfo" class="col-4 col-lg-3 text-right border-grid">${Dict[lan].foundationPlanStock}</div>
+        <div name="foundationPlanNewInfo" class="col-4 col-lg-3 text-right border-grid">${t("foundationPlanStock")}</div>
         <div class="col-8 col-lg-3 text-right border-grid" id="customStockRight${i}">${(stockRight * 100).toFixed(2)}%</div>
       `).insertAfter($(`.media-body.row.border-grid-body:eq(${i}) .col-8.col-lg-3.text-right.border-grid:eq(3)`)[0]);
     }
@@ -607,16 +607,21 @@ function createReleaseHistoryDiv(version, description) {
 /**************aboutMe****************/
 /*************Language****************/
 
-let lan = window.localStorage.getItem("PM_language") !== null ? window.localStorage.getItem("PM_language") : "tw";
+let currentLanguage = window.localStorage.getItem("PM_language") || "tw";
 
-function ChangeLanguage(l) {
-  if (lan === l) return;
-  lan = l;
-  window.localStorage.setItem("PM_language", l);
+function changeLanguage(language) {
+  if (currentLanguage === language) return;
+  currentLanguage = language;
+  window.localStorage.setItem("PM_language", language);
   window.location.reload();
 }
 
-const Dict = {
+// 翻譯米糕
+function t(key) {
+  return dict[currentLanguage][key];
+}
+
+const dict = {
   tw: {
     language: "選擇語言",
     blockAds: "關閉廣告",
@@ -636,7 +641,6 @@ const Dict = {
     unsubscribe: "取消訂閱",
     showMySubscribes: "我的訂閱",
     goToCompany: "前往",
-
   },
   en: {
     language: "language",
