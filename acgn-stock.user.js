@@ -85,7 +85,7 @@ function addPageEventListeners() {
   ACGNListener.AddAccountInfoListener(addTaxListener); // 稅率資料夾
   ACGNListener.AddAccountInfoListener(detectOwnStockInfo); // 持股資訊資料夾
   ACGNListener.AddStockSummaryListener(addStockSummaryListener); //
-  ACGNListener.AddFoundationListener(addFPEvent);
+  ACGNListener.AddFoundationListener(addFoundationPlanEvents);
 }
 
 //---------------擋廣告---------------//
@@ -390,178 +390,106 @@ function computeTax() {
 }
 /************ 帳號資訊 account info **************/
 
-/************foundationPlan***********/
-/***********foundationPlanInformation*/
-
-function getStockPrice(i, cardmode = true) {
-  let intervalUp = 1;
-  let temp;
-
-  if (cardmode) {
-    temp = $(".company-card-mask")[i].children[5].innerText.match(/[0-9]+/)[0];
-  } else {
-    temp = $(".media-body.row.border-grid-body:eq(" + i + ") .col-8.col-lg-3.text-right.border-grid:eq(3)")[0].innerText.match(/[0-9]+/)[0];
-  }
-  temp /= 1000;
-
-  while (temp > intervalUp)
-    intervalUp *= 2;
-  return intervalUp / 2;
+/************ 新創計劃 foundation plan ***********/
+// 從總投資額推算新創公司的預計股價
+function computeStockPriceFromTotalFund(totalFund) {
+  let result = 1;
+  while (totalFund / 1000 > result) result *= 2;
+  return Math.max(1, result / 2);
 }
 
-function getPersonalStockAmount(i, stockPrice, cardmode = true) {
-  if (cardmode) {
-    return ($(".company-card-mask")[i].children[6].innerText.match(/[0-9]+/)[0]) / stockPrice;
-  } else {
-    if ($(".media-body.row.border-grid-body:eq(" + i + ") .mb-1")[0].innerText.search("您尚未對此計劃進行過投資。") !== -1) {
-      return 0;
-    } else return $(".media-body.row.border-grid-body:eq(" + i + ") .mb-1")[0].innerText.match(/[0-9]+/)[0] / stockPrice;
+// 計算新創公司的額外資訊
+function computeAdditionalFoundationPlanInfo(i, inCardMode) {
+  const personalFund = Number(
+    inCardMode
+      ? $(".company-card-mask")[i].children[6].innerText.match(/[0-9]+/)[0]
+      : ($(`.media-body.row.border-grid-body:eq(${i}) .mb-1`)[0].innerText.match(/[0-9]+/) || [0])[0]
+  );
 
-  }
+  const totalFund = Number(
+    inCardMode
+      ? $(".company-card-mask")[i].children[5].innerText.match(/[0-9]+/)[0]
+      : $(`.media-body.row.border-grid-body:eq(${i}) .col-8.col-lg-3.text-right.border-grid:eq(3)`)[0].innerText.match(/[0-9]+/)[0]
+  );
+
+  const stockPrice = computeStockPriceFromTotalFund(totalFund);
+  const stockAmount = personalFund / stockPrice;
+  const stockRight = personalFund / totalFund;
+  return { stockPrice, stockAmount, stockRight };
 }
-// 股權
-function getStockRight(i, stockPrice, cardmode = true) {
-  // (個人投資額/預估股價) / (總投資/預估股價)
-  if (cardmode) {
-    if ($(".company-card-mask")[i].children[6].innerText.match(/[0-9]+/)[0] === 0)
-      return 0;
-    return 1.0 * ($(".company-card-mask")[i].children[6].innerText.match(/[0-9]+/)[0] / stockPrice) / ($(".company-card-mask")[i].children[5].innerText.match(/[0-9]+/)[0] / stockPrice);
-  } else {
-    if ($(".media-body.row.border-grid-body:eq(" + i + ") .mb-1")[0].innerText.search("您尚未對此計劃進行過投資。") !== -1) {
-      return 0;
+
+function addAdditionalFoundationPlanInfo() {
+  if ($("div[name=foundationPlanNewInfo]").length !== 0) return;
+
+  const displayModeIcon = $(".btn.btn-secondary.mr-1 i");
+  const inCardMode = displayModeIcon.hasClass("fa-th");
+  // const inListMode = displayModeIcon.hasClass("fa-th-list");
+
+  const companies = $(inCardMode ? ".company-card-mask" : ".media-body.row.border-grid-body");
+  companies.each(i => {
+    const { stockPrice, stockAmount, stockRight } = computeAdditionalFoundationPlanInfo(i, inCardMode);
+
+    if (inCardMode) {
+      $(`
+        <div name="foundationPlanNewInfo" class="row row-info d-flex justify-content-between">
+          <p>${Dict[lan].foundationPlanStockPrice}</p>
+          <p>$${stockPrice}</p>
+        </div>
+        <div name="foundationPlanNewInfo" class="row row-info d-flex justify-content-between">
+          <p>${Dict[lan].foundationPlanShare}</p>
+          <p>${Math.floor(stockAmount)}股</p>
+        </div>
+        <div name="foundationPlanNewInfo" class="row row-info d-flex justify-content-between">
+          <p>${Dict[lan].foundationPlanStock}</p>
+          <p>${(stockRight * 100).toFixed(2)}%</p>
+        </div>
+      `).insertAfter($(".company-card-mask")[i].children[5]);
+    } else {
+      $(`
+        <div name="foundationPlanNewInfo" class="col-4 col-lg-6 text-right border-grid" />
+        <div name="foundationPlanNewInfo" class="col-4 col-lg-3 text-right border-grid">${Dict[lan].foundationPlanStockPrice}</div>
+        <div class="col-8 col-lg-3 text-right border-grid" id="customStockPrice${i}">$${stockPrice}</div>
+        <div name="foundationPlanNewInfo" class="col-4 col-lg-3 text-right border-grid">${Dict[lan].foundationPlanShare}</div>
+        <div class="col-8 col-lg-3 text-right border-grid" id="customStockAmount${i}">${Math.floor(stockAmount)}股</div>
+        <div name="foundationPlanNewInfo" class="col-4 col-lg-3 text-right border-grid">${Dict[lan].foundationPlanStock}</div>
+        <div class="col-8 col-lg-3 text-right border-grid" id="customStockRight${i}">${(stockRight * 100).toFixed(2)}%</div>
+      `).insertAfter($(`.media-body.row.border-grid-body:eq(${i}) .col-8.col-lg-3.text-right.border-grid:eq(3)`)[0]);
     }
-    return $(".media-body.row.border-grid-body:eq(" + i + ") .mb-1")[0].innerText.match(/[0-9]+/)[0] / stockPrice / ($(".media-body.row.border-grid-body:eq(" + i + ") .col-8.col-lg-3.text-right.border-grid:eq(3)")[0].innerText.match(/[0-9]+/)[0] / stockPrice);
-  }
-}
-// 卡片版
-function addInfoToCompanyCardVersion(i) {
-  const stockPrice = getStockPrice(i);
-  const stockAmount = getPersonalStockAmount(i, stockPrice);
-  const stockRight = getStockRight(i, stockPrice);
-  $("<div name=\"foundationPlanNewInfo\" class=\"row row-info d-flex justify-content-between\"><p>" + Dict[lan].foundationPlanStock + "</p><p>" + (stockRight * 100).toFixed(2) + "%" + "</p></div>").insertAfter($(".company-card-mask")[i].children[5]);
-  $("<div name=\"foundationPlanNewInfo\" class=\"row row-info d-flex justify-content-between\"><p>" + Dict[lan].foundationPlanShare + "</p><p>" + Math.floor(stockAmount) + "股" + "</p></div>").insertAfter($(".company-card-mask")[i].children[5]);
-  $("<div name=\"foundationPlanNewInfo\" class=\"row row-info d-flex justify-content-between\"><p>" + Dict[lan].foundationPlanStockPrice + "</p><p>$" + stockPrice + "</p></div>").insertAfter($(".company-card-mask")[i].children[5]);
-}
-
-function addInfoToCompanyListVersion(i) {
-  const stockPrice = getStockPrice(i, false);
-  const stockAmount = getPersonalStockAmount(i, stockPrice, false);
-  const stockRight = getStockRight(i, stockPrice, false);
-  $("<div name=\"foundationPlanNewInfo\" class=\"col-4 col-lg-6 text-right border-grid\"></div>").insertAfter($(".media-body.row.border-grid-body:eq(" + i + ") .col-8.col-lg-3.text-right.border-grid:eq(3)")[0]);
-  $("<div name=\"foundationPlanNewInfo\" class=\"col-4 col-lg-3 text-right border-grid\">" + Dict[lan].foundationPlanStock + "</div><div class=\"col-8 col-lg-3 text-right border-grid\" id=\"customStockRight" + i + "\">" + (stockRight * 100).toFixed(2) + "%</div>").insertAfter($(".media-body.row.border-grid-body:eq(" + i + ") .col-8.col-lg-3.text-right.border-grid:eq(3)")[0]);
-  $("<div name=\"foundationPlanNewInfo\" class=\"col-4 col-lg-3 text-right border-grid\">" + Dict[lan].foundationPlanShare + "</div><div class=\"col-8 col-lg-3 text-right border-grid\" id=\"customStockAmount" + i + "\">" + Math.floor(stockAmount) + "股</div>").insertAfter($(".media-body.row.border-grid-body:eq(" + i + ") .col-8.col-lg-3.text-right.border-grid:eq(3)")[0]);
-  $("<div name=\"foundationPlanNewInfo\" class=\"col-4 col-lg-3 text-right border-grid\">" + Dict[lan].foundationPlanStockPrice + "</div><div class=\"col-8 col-lg-3 text-right border-grid\" id=\"customStockPrice" + i + "\">$ " + stockPrice + "</div>").insertAfter($(".media-body.row.border-grid-body:eq(" + i + ") .col-8.col-lg-3.text-right.border-grid:eq(3)")[0]);
-}
-
-const FPModeCard = "fa-th";
-const FPModeList = "fa-th-list";
-
-function addFPEvent() {
-  setTimeout(checkFPInfo, 500);
-  setTimeout(addFormControlEvent, 500); // 新創既有公司搜尋提示
-
-  $(".btn.btn-secondary.mr-1")[0].addEventListener("click", () => {
-    setTimeout(addFPEvent, 1000);
-  }, {
-    once: true,
   });
-  const linkitem = $(".pagination.pagination-sm.justify-content-center.mt-1 a");
-  const count = linkitem.length;
-  for (let i = 0; i < count; i++) {
-    linkitem[i].addEventListener("click", () => {
-      setTimeout(addFPEvent, 1000);
-    }, {
-      once: true,
-    });
+}
+
+// 找尋在 jsonObj 裡已建檔的公司名冊
+function listExistingCompanies() {
+  if ($("#displayResult").length !== 0) {
+    $("#displayResult").remove();
   }
+
+  const searchString = $(".form-control").val();
+  if (!searchString) return;
+
+  const searchRegExp = new RegExp(searchString, "i");
+  const jsonObj = getJsonObj();
+  const matchedCompanies = jsonObj.companys.filter(c => searchRegExp.test(c.companyName) || searchRegExp.test(c.companyTags));  // WTF!?
+
+  $(`
+    <div id="displayResult" style="display: block; height: 100px; margin-top: 16px; overflow: scroll; overflow-x: hidden;">
+      <p>公司名冊更新於 ${jsonObj.updateTime}</p>
+      <p>${matchedCompanies.map(c => `<a href="${c.companyLink}">${c.companyName}</a>`).join(", ")}</p>
+    </div>
+  `).insertAfter($(".form-inline"));
+}
+
+function addFoundationPlanEvents() {
+  $(".form-control").on("input", listExistingCompanies); // 既有公司搜尋提示
+
+  setTimeout(addAdditionalFoundationPlanInfo, 0);
+  $(".btn.btn-secondary.mr-1").click(() => setTimeout(addAdditionalFoundationPlanInfo, 0));
+
   console.log("Triggered PFEvent");
 }
+/************ 新創計劃 foundation plan ***********/
 
-function checkFPInfo() {
-  if ($("div[name=\"foundationPlanNewInfo\"]").length !== 0)
-    return;
-  if ($(".btn.btn-secondary.mr-1 i")[0].classList[1] === FPModeCard) {
-    if ($(".company-card-mask").length > 0) {
-      showFPCard();
-    } else setTimeout(checkFPInfo, 500);
-  } else if ($(".btn.btn-secondary.mr-1 i")[0].classList[1] === FPModeList) {
-    if ($(".media-body.row.border-grid-body").length > 0) {
-      showFPList();
-    } else setTimeout(checkFPInfo, 500);
-  }
-}
-
-function showFPCard() {
-  const companyAmount = $(".company-card-mask").length;
-  for (let i = 0; i < companyAmount; ++i)
-    addInfoToCompanyCardVersion(i);
-}
-
-function showFPList() {
-  const companyAmount = $(".media-body.row.border-grid-body").length;
-  for (let i = 0; i < companyAmount; ++i)
-    addInfoToCompanyListVersion(i);
-
-}
-/***********foundationPlanInformation*/
-
-/***********foundationPlanSearCompany*/
-
-function displayCompanyName(companys) {
-  const jsonObj = getJsonObj();
-
-  let displayDiv = "<div id=\"displayResult\">";
-  if (companys.length !== 0) {
-    displayDiv += "<a href=\"" + companys[0].companyLink + "\">" + companys[0].companyName + "</a>";
-    for (let i = 1; i < companys.length; ++i)
-      displayDiv += ", <a href=\"" + companys[i].companyLink + "\">" + companys[i].companyName + "</a>";
-  } else {
-    displayDiv += "於" + jsonObj.updateTime + "更新公司名冊";
-  }
-  displayDiv += "</div>";
-  if ($("#displayResult").length !== 0)
-    $("#displayResult").remove();
-  console.log(displayDiv);
-  $(displayDiv).insertAfter($(".input-group-btn"));
-  $("#displayResult").css("width", "60%");
-  $("#displayResult").css("height", "30px");
-  $("#displayResult").css("overflow", "scroll");
-  $("#displayResult").css("overflow-x", "hidden");
-}
-
-function autoCheck() {
-  const jsonObj = getJsonObj();
-  const searchString = $(".form-control")[0].value;
-  const searchRegExp = new RegExp(searchString, "i"); // 'i' makes the RegExp ignore case
-
-  // var companyName = [];
-  let result;
-
-  if (searchString.length !== 0) {
-    result = jsonObj.companys.filter(function(e) { // Filter out any items that don't pass the
-      return searchRegExp.test(e.companyName) || searchRegExp.test(e.companyTags); //  RegExp test.
-    });
-    /*
-		companyName = result.map(function(e){
-			return e.companyName;
-		});
-        */
-  }
-  displayCompanyName(result);
-}
-
-function addFormControlEvent() {
-  $(".form-control").keyup(autoCheck);
-  getJsonObj();
-}
-
-
-/***********foundationPlanSearCompany*/
-
-/************foundationPlan***********/
-/*************************************/
 /**************aboutMe****************/
-
 function GotoAboutMe() {
   $(".card-block").remove();
   SetAboutMeString();
