@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ACGN股票系統每股營利外掛
 // @namespace    http://tampermonkey.net/
-// @version      2.800
+// @version      2.801
 // @description  try to take over the world!
 // @author       papago & Ming & frozenmouse
 // @match        http://acgn-stock.com/*
@@ -74,17 +74,27 @@ function onFoundationPlanPageLoaded() {
 
 const getJsonObj = (() => {
   const jsonUrl = "https://jsonbin.org/abcd1357/ACGNstock-company";
+
+  const request = new XMLHttpRequest();
+  request.open("GET", jsonUrl); // 非同步 GET
+  request.addEventListener("load", () => {
+    console.log("got jsonObj");
+    jsonObjCache = JSON.parse(request.responseText);
+  });
+  request.send();
+
   let jsonObjCache = null;
 
-  return () => {
+  return (callback) => {
     // 考慮資料更新週期極長，已有資料就不用再拿了
-    if (jsonObjCache === null) {
-      const request = new XMLHttpRequest();
-      request.open("GET", jsonUrl, false); // 同步連線 GET 到該連線位址
-      request.send();
-      jsonObjCache = JSON.parse(request.responseText);
+    if (jsonObjCache !== null) {
+      callback(jsonObjCache);
+      return;
     }
-    return jsonObjCache;
+
+    request.addEventListener("load", function() {
+      callback(jsonObjCache);
+    });
   };
 })();
 
@@ -309,53 +319,53 @@ function removeAdditionalNumbersInfo() {
 /************ 帳號資訊 account info **************/
 /************* 持股資訊 & 金額試算 ***/
 function detectOwnStockInfo() {
-  const jsonObj = getJsonObj();
+  getJsonObj(jsonObj => {
+    const ownStockList = $("[data-toggle-panel=stock]").parent().next().children().filter((i, e) => e.innerHTML.match(/擁有.+公司的.+股票/));
+    if (ownStockList.length === 0) return;  // 持股資訊未開啟 or 無資料
 
-  const ownStockList = $("[data-toggle-panel=stock]").parent().next().children().filter((i, e) => e.innerHTML.match(/擁有.+公司的.+股票/));
-  if (ownStockList.length === 0) return;  // 持股資訊未開啟 or 無資料
-
-  if ($("#compute-btn").length === 0) {
-    $(`<button class="btn btn-danger btn-sm" type="button" id="compute-btn">計算此頁資產</button>`)
-      .on("click", detectOwnStockInfo)
-      .insertAfter($("[data-toggle-panel=stock]").parent().next().children().last());
-  }
-
-  if ($("#clear-asset-message-btn").length === 0) {
-    $(`<button class="btn btn-danger btn-sm" type="button" id="clear-asset-message-btn">清除總資產訊息</button>`)
-      .on("click", () => $("#asset-display-div").remove())
-      .insertAfter($("[data-toggle-panel=stock]").parent().next().children().last());
-  }
-
-  if ($("#asset-display-div").length === 0) {
-    $(`
-      <div id="asset-display-div">
-        <p>公司股價更新時間為 ${jsonObj.updateTime}</p>
-        <p>目前共有<span id="total-asset">0</span>元資產</p>
-      </div>
-    `).insertAfter($("[data-toggle-panel=stock]").parent().next().children().last());
-  }
-
-  let total = 0;
-  ownStockList.each((i, e) => {
-    const companyLinkMatchResult = e.innerHTML.match(/href="([^"]+)/);
-    if (!companyLinkMatchResult) return;
-
-    const companyData = jsonObj.companys.find(e => e.companyLink === companyLinkMatchResult[1]);
-    if (!companyData) return;
-
-    const price = Number(companyData.companyPrice);
-    const amount = Number(e.innerHTML.match(/([0-9]+)股/)[1]);
-    const subtotal = price * amount;
-    total += subtotal;
-
-    if (!e.innerHTML.match(/參考股價/)) {
-      e.innerHTML += `參考股價 ${price} 元，有 ${subtotal} 元資產。`;
+    if ($("#compute-btn").length === 0) {
+      $(`<button class="btn btn-danger btn-sm" type="button" id="compute-btn">計算此頁資產</button>`)
+        .on("click", detectOwnStockInfo)
+        .insertAfter($("[data-toggle-panel=stock]").parent().next().children().last());
     }
-  });
 
-  const pageNum = $(".page-item.active").text();
-  $("#asset-display-div").append(`<p>第 ${pageNum} 頁共有 ${total} 元資產</p>`);
-  $("#total-asset").text((_, old) => Number(old) + total);
+    if ($("#clear-asset-message-btn").length === 0) {
+      $(`<button class="btn btn-danger btn-sm" type="button" id="clear-asset-message-btn">清除總資產訊息</button>`)
+        .on("click", () => $("#asset-display-div").remove())
+        .insertAfter($("[data-toggle-panel=stock]").parent().next().children().last());
+    }
+
+    if ($("#asset-display-div").length === 0) {
+      $(`
+        <div id="asset-display-div">
+          <p>公司股價更新時間為 ${jsonObj.updateTime}</p>
+          <p>目前共有<span id="total-asset">0</span>元資產</p>
+        </div>
+      `).insertAfter($("[data-toggle-panel=stock]").parent().next().children().last());
+    }
+
+    let total = 0;
+    ownStockList.each((i, e) => {
+      const companyLinkMatchResult = e.innerHTML.match(/href="([^"]+)/);
+      if (!companyLinkMatchResult) return;
+
+      const companyData = jsonObj.companys.find(e => e.companyLink === companyLinkMatchResult[1]);
+      if (!companyData) return;
+
+      const price = Number(companyData.companyPrice);
+      const amount = Number(e.innerHTML.match(/([0-9]+)股/)[1]);
+      const subtotal = price * amount;
+      total += subtotal;
+
+      if (!e.innerHTML.match(/參考股價/)) {
+        e.innerHTML += `參考股價 ${price} 元，有 ${subtotal} 元資產。`;
+      }
+    });
+
+    const pageNum = $(".page-item.active").text();
+    $("#asset-display-div").append(`<p>第 ${pageNum} 頁共有 ${total} 元資產</p>`);
+    $("#total-asset").text((_, old) => Number(old) + total);
+  });
 }
 
 /************* 稅率試算 *********************/
@@ -511,15 +521,17 @@ function listExistingCompanies() {
   if (!searchString) return;
 
   const searchRegExp = new RegExp(searchString, "i");
-  const jsonObj = getJsonObj();
-  const matchedCompanies = jsonObj.companys.filter(c => searchRegExp.test(c.companyName) || searchRegExp.test(c.companyTags));  // WTF!?
 
-  $(`
-    <div id="displayResult" style="display: block; height: 100px; margin-top: 16px; overflow: scroll; overflow-x: hidden;">
-      <p>公司名冊更新於 ${jsonObj.updateTime}</p>
-      <p>${matchedCompanies.map(c => `<a href="${c.companyLink}">${c.companyName}</a>`).join(", ")}</p>
-    </div>
-  `).insertAfter($(".form-inline"));
+  getJsonObj(jsonObj => {
+    const matchedCompanies = jsonObj.companys.filter(c => searchRegExp.test(c.companyName) || searchRegExp.test(c.companyTags));  // WTF!?
+
+    $(`
+      <div id="displayResult" style="display: block; height: 100px; margin-top: 16px; overflow: scroll; overflow-x: hidden;">
+        <p>公司名冊更新於 ${jsonObj.updateTime}</p>
+        <p>${matchedCompanies.map(c => `<a href="${c.companyLink}">${c.companyName}</a>`).join(", ")}</p>
+      </div>
+    `).insertAfter($(".form-inline"));
+  });
 }
 /************ 新創計劃 foundation plan ***********/
 
