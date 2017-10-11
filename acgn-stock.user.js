@@ -541,7 +541,10 @@ function showAboutScript() {
 const releaseHistoryList = [
   {
     version: "2.800",
-    description: `<p>滿滿的大重構。</p>`,
+    description: `
+      <p>滿滿的大重構。</p>
+      <p><span class="text-info">更新腳本</span>增加了與frozenmouse發佈版本的連動。</p>
+    `,
   },
   {
     version: "2.500",
