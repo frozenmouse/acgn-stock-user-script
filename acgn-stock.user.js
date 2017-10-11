@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ACGN股票系統每股營利外掛
 // @namespace    http://tampermonkey.net/
-// @version      2.702
+// @version      2.800
 // @description  try to take over the world!
 // @author       papago & Ming & frozenmouse
 // @match        http://acgn-stock.com/*
@@ -17,9 +17,8 @@
 //兩個錯誤修正版本號防止迫不得已進位到次要版本號
 //版本更新會每十分鐘確認一次
 
-const jsonUrl = "https://jsonbin.org/abcd1357/ACGNstock-company";
-
 const getJsonObj = (() => {
+  const jsonUrl = "https://jsonbin.org/abcd1357/ACGNstock-company";
   let jsonObjCache = null;
 
   return () => {
@@ -540,6 +539,10 @@ function showAboutScript() {
 }
 
 const releaseHistoryList = [
+  {
+    version: "2.800",
+    description: `<p>滿滿的大重構。</p>`,
+  },
   {
     version: "2.500",
     description: `<p><span class="text-info">更新腳本</span>連動到Ming，現在Ming也可以自己發布新版腳本讓大家更新了。</p>`,
