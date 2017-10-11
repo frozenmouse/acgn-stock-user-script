@@ -7,7 +7,6 @@
 // @match        http://acgn-stock.com/*
 // @match        https://acgn-stock.com/*
 // @grant        none
-// @require      https://greasyfork.org/scripts/34010/code/ACGN-Stock%E8%82%A1%E7%A5%A8%E4%BA%8B%E4%BB%B6%E7%9B%A3%E8%81%BD.js
 // ==/UserScript==
 
 //版本號為'主要版本號 + "." + 次要版本號 + 錯誤修正版本號(兩位)，ex 1.801
@@ -16,6 +15,62 @@
 //一旦主要版本號或次要版本號更動，就會跳UI提是使用者更新腳本
 //兩個錯誤修正版本號防止迫不得已進位到次要版本號
 //版本更新會每十分鐘確認一次
+
+// 觀察頁面載入狀態
+function observeLoadingOverlay() {
+  new MutationObserver(mutations => {
+    mutations.filter(m => m.attributeName === "class").forEach(m => {
+      if (m.target.classList.contains("d-none")) {
+        onPageLoaded();
+      } else {
+        onPageLoading();
+      }
+    });
+  }).observe($("#loading .loadingOverlay")[0], { attributes: true });
+}
+
+function onPageLoading() {
+  console.log(`Page loading: ${document.location.href}`);
+}
+
+function onPageLoaded() {
+  const currentUrl = document.location.href;
+  console.log(`Page loaded: ${currentUrl}`);
+
+  // 頁面 url 樣式的回呼表
+  const urlPatternCallbackTable = [
+    { pattern: /company\/[0-9]+/, callback: onStockSummaryPageLoaded },
+    { pattern: /company\/detail/, callback: onCompanyDetailPageLoaded },
+    { pattern: /accountInfo/, callback: onAccountInfoPageLoaded },
+    { pattern: /foundation\/[0-9]+/, callback: onFoundationPlanPageLoaded },
+  ];
+
+  urlPatternCallbackTable.forEach(({ pattern, callback }) => {
+    if (currentUrl.match(pattern)) {
+      // loadingOverlay 消失後，需要給點時間讓頁面的載入全部跑完
+      setTimeout(callback, 100);
+    }
+  });
+}
+
+function onStockSummaryPageLoaded() {
+  computeAssets();
+}
+
+function onCompanyDetailPageLoaded() {
+  checkCompanyDetailFolderStates();
+  addCompanyDetailFolderClickListeners();
+}
+
+function onAccountInfoPageLoaded() {
+  addTaxCalcFolder();   // 稅率資料夾
+  detectOwnStockInfo(); // 持股資訊資料夾
+}
+
+function onFoundationPlanPageLoaded() {
+  addAdditionalFoundationPlanInfo();
+  addFoundationPlanSearchInputListener();
+}
 
 const getJsonObj = (() => {
   const jsonUrl = "https://jsonbin.org/abcd1357/ACGNstock-company";
@@ -35,15 +90,16 @@ const getJsonObj = (() => {
 
 // 程式進入點
 (function mainfunction() {
+  observeLoadingOverlay();
   //全域事件
-  setTimeout(addNavItems, 500); // 新增上方按鈕
-  setTimeout(checkScriptUpdates, 500);
-  addPageEventListeners(); // 監聽main的變化並呼叫對應事件
+  setTimeout(addNavItems, 0); // 新增上方按鈕
+  setTimeout(checkScriptUpdates, 0);
 })();
 
 // Header新增按鈕並監聽
-// 按鍵需要以倒序插入，後加的按鍵會排在左邊
 function addNavItems() {
+  // 按鍵需要以倒序插入，後加的按鍵會排在左邊
+
   const insertionTarget = $(".note")[2];
 
   // 關於插件
@@ -75,15 +131,6 @@ function addNavItems() {
   $(`<li class="nav-item"><a class="nav-link" href="#" id="block-ads">${t("blockAds")}</a></li>`)
     .insertAfter(insertionTarget);
   $("#block-ads").on("click", blockAds);
-}
-
-// 監測main的變化並判斷當前屬於哪個頁面加入正確的事件監聽
-function addPageEventListeners() {
-  ACGNListener.AddCompanyListener(addCompanyClickListener); // 數據資訊
-  ACGNListener.AddAccountInfoListener(addTaxListener); // 稅率資料夾
-  ACGNListener.AddAccountInfoListener(detectOwnStockInfo); // 持股資訊資料夾
-  ACGNListener.AddStockSummaryListener(addStockSummaryListener); //
-  ACGNListener.AddFoundationListener(addFoundationPlanEvents);
 }
 
 //---------------擋廣告---------------//
@@ -131,11 +178,6 @@ function checkGreasyForkScriptUpdate(id) {
 /*************************************/
 
 /************ 股市總覽 stock summary *************/
-function addStockSummaryListener() {
-  computeAssets();
-  console.log("Triggered StockSummary");
-}
-
 function computeAssets() {
   let assets = 0;
 
@@ -203,39 +245,37 @@ const companyDetailFolderCallbacks = {
 };
 
 function onCompanyDetailFolderStateChanged(folderName, isOpen) {
-  console.log(`folder ${folderName}, isOpen: ${isOpen}`);
   if (companyDetailFolderCallbacks[folderName] !== undefined) {
     const callback = companyDetailFolderCallbacks[folderName][isOpen ? "open" : "close"];
     if (callback !== undefined) callback();
   }
 }
 
-function addCompanyClickListener() {
-  if ($(".d-block.h4").length === companyDetailFolderNames.length) {
-    const folderOpenClass = "fa-folder-open";
-    const folderCloseClass = "fa-folder";
-
+function checkCompanyDetailFolderStates() {
+  setTimeout(() => {
     $(".d-block.h4").each((i, e) => {
-      function checkFolderState() {
-        const folderIcon = $(e).find("i");
-        if (folderIcon.hasClass(folderOpenClass)) {
-          onCompanyDetailFolderStateChanged(companyDetailFolderNames[i], true);
-        } else if (folderIcon.hasClass(folderCloseClass)) {
-          onCompanyDetailFolderStateChanged(companyDetailFolderNames[i], false);
-        }
-      }
 
-      checkFolderState(); // 先 check 一次
-      e.addEventListener("click", () => setTimeout(checkFolderState, 0)); // click 時等待更新後再 check 一次
+      const folderIcon = $(e).find("i");
+      if (folderIcon.hasClass("fa-folder-open")) {
+        onCompanyDetailFolderStateChanged(companyDetailFolderNames[i], true);
+      } else if (folderIcon.hasClass("fa-folder")) {
+        onCompanyDetailFolderStateChanged(companyDetailFolderNames[i], false);
+      }
     });
-  } else {
-    setTimeout(addCompanyClickListener, 500);
-  }
-  console.log("Triggered Company");
+  }, 0); // 給點時間時等待更新後再 check
+}
+
+function addCompanyDetailFolderClickListeners() {
+  $(".d-block.h4")
+    .off("click", checkCompanyDetailFolderStates) // 避免重複加入事件
+    .on("click", checkCompanyDetailFolderStates);
 }
 
 // 計算每股盈餘、本益比、益本比並顯示
 function addAdditionalNumbersData() {
+  // 先移除之前新增的資訊
+  removeAdditionalNumbersInfo();
+
   const dataValueCells = $(".col-8.col-md-4.col-lg-2.text-right.border-grid");
 
   const stockPrice = Number(dataValueCells[0].innerHTML.match(/[0-9]+/));
@@ -254,12 +294,10 @@ function addAdditionalNumbersData() {
       `);
   }
 
-  if ($("#benefit-ratio").length === 0) {
-    insertData("earn-per-share", dict[currentLanguage].earnPerShare, earnPerShare.toFixed(2));
-    insertData("pe-ratio", dict[currentLanguage].PERatio, PERatio === Infinity ? "∞" : PERatio.toFixed(2));
-    insertData("benefit-ratio", dict[currentLanguage].benefitRatio, benefitRatio.toFixed(2));
-    console.log("addSomeInfo!!");
-  }
+  insertData("earn-per-share", dict[currentLanguage].earnPerShare, earnPerShare.toFixed(2));
+  insertData("pe-ratio", dict[currentLanguage].PERatio, PERatio === Infinity ? "∞" : PERatio.toFixed(2));
+  insertData("benefit-ratio", dict[currentLanguage].benefitRatio, benefitRatio.toFixed(2));
+  console.log("addSomeInfo!!");
 }
 
 // 清出額外新增的資訊
@@ -321,35 +359,6 @@ function detectOwnStockInfo() {
 }
 
 /************* 稅率試算 *********************/
-function addTaxListener() {
-  $(`
-    <div class="row border-grid-body" style="margin-top: 15px;">
-      <div class="col-12 border-grid" id="custom-tax">
-        <a class="d-block h4" href="" data-toggle-panel="custom-tax">
-          ${t("taxCalculation")} <i class="fa fa-folder" aria-hidden="true"/>
-        </a>
-      </div>
-    </div>
-  `).insertAfter($(".row.border-grid-body")[0]);
-  $("#custom-tax").on("click", onAccountInfoTaxFolderClicked);
-  console.log("Triggered Tax");
-}
-
-function onAccountInfoTaxFolderClicked() {
-  const taxFolderIcon = $("#custom-tax .fa");
-
-  if (taxFolderIcon.hasClass("fa-folder")) {
-    taxFolderIcon.addClass("fa-folder-open").removeClass("fa-folder");
-    $(`
-      <div class="col-6 text-right border-grid" id="tax-input-holder"><input id="tax-input-text" class="form-control" type="text"></div>
-      <div class="col-6 text-right border-grid" id="tax-output-holder"><h5>${t("yourTax")} <span id="tax-output">$ 0</span></h5></div>
-    `).insertAfter($("#custom-tax"));
-    $("#tax-input-text").on("input", computeTax);
-  } else {
-    taxFolderIcon.addClass("fa-folder").removeClass("fa-folder-open");
-    $("#tax-input-holder, #tax-output-holder").remove();
-  }
-}
 
 // 稅率表：資產上限、稅率、累進差額
 const taxRateTable = [
@@ -376,11 +385,44 @@ const taxRateTable = [
   { asset: Infinity, rate: 0.60, adjustment: 4608300 },
 ];
 
-function computeTax() {
-  const input = Number($("#tax-input-text").val().match(/[0-9]+/));
-  const { rate, adjustment } = taxRateTable.find(e => input < e.asset);
-  const output = Math.ceil(input * rate - adjustment);
-  $("#tax-output").text(`$ ${output}`);
+// 加入稅金試算資料夾
+function addTaxCalcFolder() {
+  if ($("#tax-calc").length !== 0) return;
+
+  $(".row.border-grid-body").append(`
+    <div class="col-12 border-grid" id="tax-calc">
+      <a class="d-block h4" href="" data-toggle-panel="tax-calc">
+        ${t("taxCalculation")} <i class="fa fa-folder"/>
+      </a>
+    </div>
+  `);
+
+  $("[data-toggle-panel=tax-calc]").on("click", () => {
+    const folderIcon = $("#tax-calc .fa");
+
+    if (folderIcon.hasClass("fa-folder")) {
+      folderIcon.addClass("fa-folder-open").removeClass("fa-folder");
+
+      $("#tax-calc").after(`
+        <div class="col-12 text-right border-grid" id="tax-calc-content">
+          <h5>${t("enterTotalAssets")}</h5>
+          <input id="tax-calc-input" class="form-control" type="text">
+          <h5>${t("yourTax")} <span id="tax-calc-output">$ 0</span></h5>
+        </div>
+      `);
+
+      // 輸入時即時運算稅金
+      $("#tax-calc-input").on("input", () => {
+        const input = Number($("#tax-calc-input").val().match(/[0-9]+/));
+        const { rate, adjustment } = taxRateTable.find(e => input < e.asset);
+        const output = Math.ceil(input * rate - adjustment);
+        $("#tax-calc-output").text(`$ ${output}`);
+      });
+    } else {
+      folderIcon.addClass("fa-folder").removeClass("fa-folder-open");
+      $("#tax-calc-content").remove();
+    }
+  });
 }
 /************ 帳號資訊 account info **************/
 
@@ -413,18 +455,18 @@ function computeAdditionalFoundationPlanInfo(i, inCardMode) {
 }
 
 function addAdditionalFoundationPlanInfo() {
-  if ($("div[name=foundationPlanNewInfo]").length !== 0) return;
-
   const displayModeIcon = $(".btn.btn-secondary.mr-1 i");
   const inCardMode = displayModeIcon.hasClass("fa-th");
-  // const inListMode = displayModeIcon.hasClass("fa-th-list");
 
   const companies = $(inCardMode ? ".company-card-mask" : ".media-body.row.border-grid-body");
-  companies.each(i => {
+  companies.each((i, e) => {
+    console.log(`${i}: ${$(e).find(".title-starter").text().trim()}`);
+    if ($(e).find("div[name=foundationPlanNewInfo]").length !== 0) return;
+
     const { stockPrice, stockAmount, stockRight } = computeAdditionalFoundationPlanInfo(i, inCardMode);
 
     if (inCardMode) {
-      $(`
+      $(e).find(".row-info").last().after(`
         <div name="foundationPlanNewInfo" class="row row-info d-flex justify-content-between">
           <p>${t("foundationPlanStockPrice")}</p>
           <p>$${stockPrice}</p>
@@ -437,9 +479,9 @@ function addAdditionalFoundationPlanInfo() {
           <p>${t("foundationPlanStock")}</p>
           <p>${(stockRight * 100).toFixed(2)}%</p>
         </div>
-      `).insertAfter($(".company-card-mask")[i].children[5]);
+      `);
     } else {
-      $(`
+      $(e).find(".col-8.col-lg-3.text-right.border-grid:eq(3)").after(`
         <div name="foundationPlanNewInfo" class="col-4 col-lg-6 text-right border-grid" />
         <div name="foundationPlanNewInfo" class="col-4 col-lg-3 text-right border-grid">${t("foundationPlanStockPrice")}</div>
         <div class="col-8 col-lg-3 text-right border-grid" id="customStockPrice${i}">$${stockPrice}</div>
@@ -447,12 +489,19 @@ function addAdditionalFoundationPlanInfo() {
         <div class="col-8 col-lg-3 text-right border-grid" id="customStockAmount${i}">${Math.floor(stockAmount)}股</div>
         <div name="foundationPlanNewInfo" class="col-4 col-lg-3 text-right border-grid">${t("foundationPlanStock")}</div>
         <div class="col-8 col-lg-3 text-right border-grid" id="customStockRight${i}">${(stockRight * 100).toFixed(2)}%</div>
-      `).insertAfter($(`.media-body.row.border-grid-body:eq(${i}) .col-8.col-lg-3.text-right.border-grid:eq(3)`)[0]);
+      `);
     }
   });
 }
 
-// 找尋在 jsonObj 裡已建檔的公司名冊
+function addFoundationPlanSearchInputListener() {
+  // 既有公司搜尋提示
+  $(".form-control")
+    .off("input", listExistingCompanies)  // 避免重複加入事件
+    .on("input", listExistingCompanies);
+}
+
+// 找尋並顯示在 jsonObj 裡已建檔的公司名冊
 function listExistingCompanies() {
   if ($("#displayResult").length !== 0) {
     $("#displayResult").remove();
@@ -471,15 +520,6 @@ function listExistingCompanies() {
       <p>${matchedCompanies.map(c => `<a href="${c.companyLink}">${c.companyName}</a>`).join(", ")}</p>
     </div>
   `).insertAfter($(".form-inline"));
-}
-
-function addFoundationPlanEvents() {
-  $(".form-control").on("input", listExistingCompanies); // 既有公司搜尋提示
-
-  setTimeout(addAdditionalFoundationPlanInfo, 0);
-  $(".btn.btn-secondary.mr-1").click(() => setTimeout(addAdditionalFoundationPlanInfo, 0));
-
-  console.log("Triggered PFEvent");
 }
 /************ 新創計劃 foundation plan ***********/
 
