@@ -179,7 +179,7 @@ function computeAssets() {
     $(`<div class="col-6 text-right border-grid" id="totalAssetsNumber"/>`)
       .insertAfter($("#totalAssetsTitle")[0]);
   }
-  $("#totalAssetsNumber")[0].innerHTML = `<h2>$ ${assets}</h2>`;
+  $("#totalAssetsNumber").html(`<h2>$ ${assets}</h2>`);
 }
 /************ 股市總覽 stock summary *************/
 
@@ -321,9 +321,9 @@ function detectOwnStockInfo() {
     }
   });
 
-  const pageNum = $(".page-item.active")[0].innerText;
-  $("#asset-display-div")[0].innerHTML += `<p>第 ${pageNum} 頁共有 ${total} 元資產</p>`;
-  $("#total-asset")[0].innerText = (Number($("#total-asset")[0].innerText) + total);
+  const pageNum = $(".page-item.active").text();
+  $("#asset-display-div").append(`<p>第 ${pageNum} 頁共有 ${total} 元資產</p>`);
+  $("#total-asset").text((_, old) => Number(old) + total);
 }
 
 /************* 稅率試算 *********************/
