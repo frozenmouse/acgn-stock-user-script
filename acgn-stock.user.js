@@ -9,30 +9,53 @@
 // @grant        none
 // ==/UserScript==
 
-//版本號為'主要版本號 + "." + 次要版本號 + 錯誤修正版本號(兩位)，ex 1.801
-//修復導致功能失效的錯誤或更新重大功能提升主要或次要版本號
-//優化UI，優化效能，優化小錯誤更新錯誤版本號
-//一旦主要版本號或次要版本號更動，就會跳UI提是使用者更新腳本
-//兩個錯誤修正版本號防止迫不得已進位到次要版本號
-//版本更新會每十分鐘確認一次
+/**
+ * 版本號格式為：a.bcc
+ * a 為主要版本號，一位數
+ * b 為次要版本號，一位數
+ * c 為錯誤修正版本號，兩位數
+ *
+ * e.g., 版本號 2.801 => a = '2', b = '8', c = '01'
+ *
+ * 修復導致功能失效的錯誤或更新重大功能 → 提升主要或次要版本號
+ * 優化 UI、優化效能、優化小錯誤 → 更新錯誤版本號
+ *
+ * 檢查更新時，若主要或次要版本號變動，則顯示按鍵提示使用者更新
+ * （參見 checkScriptUpdates()）
+ */
 
-// 觀察頁面載入狀態
+// 程式進入點
+(function() {
+  observeLoadingOverlay();
+  setTimeout(addNavItems, 0);
+  setTimeout(checkScriptUpdates, 0);
+})();
+
+// 觀察頁面是否進入或離開載入狀態（是否正在轉圈圈）
 function observeLoadingOverlay() {
+  // 頁面處於載入狀態時會出現的蓋版元素（俗稱「轉圈圈」）
+  const loadingOverlay = $("#loading .loadingOverlay")[0];
+
+  // 觀察 loadingOverlay 的 class attribute 是否變動
   new MutationObserver(mutations => {
     mutations.filter(m => m.attributeName === "class").forEach(m => {
       if (m.target.classList.contains("d-none")) {
+        // 轉圈圈隱藏 => 已脫離載入狀態
         onPageLoaded();
       } else {
+        // 顯示轉圈圈 => 正處於載入狀態
         onPageLoading();
       }
     });
-  }).observe($("#loading .loadingOverlay")[0], { attributes: true });
+  }).observe(loadingOverlay, { attributes: true });
 }
 
+// 頁面在載入狀態時進行此回呼
 function onPageLoading() {
   console.log(`Page loading: ${document.location.href}`);
 }
 
+// 頁面離開載入狀態時進行此回呼
 function onPageLoaded() {
   const currentUrl = document.location.href;
   console.log(`Page loaded: ${currentUrl}`);
@@ -45,6 +68,7 @@ function onPageLoaded() {
     { pattern: /foundation\/[0-9]+/, callback: onFoundationPlanPageLoaded },
   ];
 
+  // 匹配當前頁面 url 的樣式並進行對應的回呼
   urlPatternCallbackTable.forEach(({ pattern, callback }) => {
     if (currentUrl.match(pattern)) {
       // loadingOverlay 消失後，需要給點時間讓頁面的載入全部跑完
@@ -53,28 +77,44 @@ function onPageLoaded() {
   });
 }
 
+// 當「股市總覽」頁面已載入時進行的回呼
 function onStockSummaryPageLoaded() {
   computeAssets();
 }
 
+// 當「公司資訊」頁面已載入時進行的回呼
 function onCompanyDetailPageLoaded() {
   checkCompanyDetailFolderStates();
   addCompanyDetailFolderClickListeners();
 }
 
+// 當「帳號資訊」頁面已載入時進行的回呼
 function onAccountInfoPageLoaded() {
   addTaxCalcFolder();   // 稅率資料夾
   detectOwnStockInfo(); // 持股資訊資料夾
 }
 
+// 當「新創計劃」頁面已載入時進行的回呼
 function onFoundationPlanPageLoaded() {
   addAdditionalFoundationPlanInfo();
   addFoundationPlanSearchInputListener();
 }
 
+/**
+ * 以非同步方式取得另外整理過的公司資料 json
+ *
+ * 考慮資料更新週期極長，若是已經取得過資料，就將之前取得的資料快取回傳
+ *
+ * 使用方法：
+ * getJsonObj(jsonObj => {
+ *   // 這裡的 jsonObj 即為該 json 物件
+ * })
+ */
 const getJsonObj = (() => {
-  const jsonUrl = "https://jsonbin.org/abcd1357/ACGNstock-company";
+  // 先前取得的 json 快取
+  let jsonObjCache = null;
 
+  const jsonUrl = "https://jsonbin.org/abcd1357/ACGNstock-company";
   const request = new XMLHttpRequest();
   request.open("GET", jsonUrl); // 非同步 GET
   request.addEventListener("load", () => {
@@ -83,41 +123,32 @@ const getJsonObj = (() => {
   });
   request.send();
 
-  let jsonObjCache = null;
-
   return (callback) => {
-    // 考慮資料更新週期極長，已有資料就不用再拿了
+    // 若快取資料存在，則直接回傳快取
     if (jsonObjCache !== null) {
       callback(jsonObjCache);
       return;
     }
 
+    // 若無快取資料，則加入事件監聽，等載入後再回傳資料
     request.addEventListener("load", function() {
       callback(jsonObjCache);
     });
   };
 })();
 
-// 程式進入點
-(function mainfunction() {
-  observeLoadingOverlay();
-  //全域事件
-  setTimeout(addNavItems, 0); // 新增上方按鈕
-  setTimeout(checkScriptUpdates, 0);
-})();
-
-// Header新增按鈕並監聽
+// 新增按鈕至上面的導覽區
 function addNavItems() {
+  // 所有按鍵插入在原來的第三個按鍵（主題配置）之後
   // 按鍵需要以倒序插入，後加的按鍵會排在左邊
-
   const insertionTarget = $(".note")[2];
 
-  // 關於插件
+  // 「關於插件」按鍵
   $(`<li class="nav-item"><a class="nav-link" href="#" id="about-script">${t("aboutScript")}</a></li>`)
     .insertAfter(insertionTarget);
   $("#about-script").on("click", showAboutScript);
 
-  // 選擇語言
+  // 「選擇語言」按鍵
   $(`
     <div class="note">
       <li class="nav-item dropdown">
@@ -137,31 +168,34 @@ function addNavItems() {
   $("#lang-en").on("click", () => { changeLanguage("en"); });
   $("#lang-jp").on("click", () => { changeLanguage("jp"); });
 
-  // 關閉廣告
+  // 「關閉廣告」按鍵
   $(`<li class="nav-item"><a class="nav-link" href="#" id="block-ads">${t("blockAds")}</a></li>`)
     .insertAfter(insertionTarget);
   $("#block-ads").on("click", blockAds);
 }
 
-//---------------擋廣告---------------//
+// 對所有廣告點擊關閉
 function blockAds() {
-  console.log("blockAds");
-  // 自動對所有廣告點擊關閉
   $(".fixed-bottom .media.bg-info.text.px-2.py-1.my-2.rounded .d-flex a").click();
 }
 
 /*************************************/
-/************UpdateScript*************/
+/************ 腳本更新檢查 *************/
 
-const updateScriptCheckInterval = 600000; // 10 minutes
+// 腳本檢查更新的週期
+const updateScriptCheckInterval = 600000; // 10 分鐘
 
+// 檢查腳本是否有更新
 function checkScriptUpdates() {
-  checkGreasyForkScriptUpdate("33359"); // papago
-  checkGreasyForkScriptUpdate("33781"); // Ming
-  checkGreasyForkScriptUpdate("33814"); // frozenmouse
+  checkGreasyForkScriptUpdate("33359"); // papago 版
+  checkGreasyForkScriptUpdate("33781"); // Ming 版
+  checkGreasyForkScriptUpdate("33814"); // frozenmouse 版
+
+  // 在經過了一段時間之後，再檢查一次
   setTimeout(checkScriptUpdates, updateScriptCheckInterval);
 }
 
+// 檢查 GreasyFork 上特定 id 的腳本是否有更新
 function checkGreasyForkScriptUpdate(id) {
   const scriptUrl = `https://greasyfork.org/zh-TW/scripts/${id}`;
   const request = new XMLHttpRequest();
@@ -184,17 +218,21 @@ function checkGreasyForkScriptUpdate(id) {
   });
   request.send();
 }
-/************UpdateScript*************/
+/************ 腳本更新檢查 *************/
 /*************************************/
 
+/************************************************/
 /************ 股市總覽 stock summary *************/
-function computeAssets() {
-  let assets = 0;
 
+// 計算該頁面所持有的股票總額，並顯示在頁面上
+function computeAssets() {
+  let assets = 0; // 總資產
+
+  // 是否在卡片模式
   const isInCardMode = $(".col-12.col-md-6.col-lg-4.col-xl-3").length > 0;
 
+  // 取出每個公司的參考價格與持有數，加總到總資產
   if (isInCardMode) {
-    // 卡片模式
     $(".company-card").each((i, e) => {
       const price = Number(e.innerText.match(/\$ [0-9]+\(([0-9]+)\)/)[1]);
       const hold = Number(e.innerText.match(/([0-9]+).+%.+/)[1]);
@@ -203,7 +241,6 @@ function computeAssets() {
       assets += subtotal;
     });
   } else {
-    // 列表模式
     $(".media-body.row.border-grid-body").each((i, e) => {
       const price = Number(e.innerText.match(/\$ [0-9]+\(([0-9]+)\)/)[1]);
       const hold = Number(e.innerText.match(/您在該公司持有([0-9]+)數量的股份/)[1]);
@@ -214,6 +251,8 @@ function computeAssets() {
   }
 
   console.log("本頁持股價值: " + assets);
+
+  // 顯示該頁面的持股總價值
   if ($("#totalAssetsNumber").length === 0) {
     $(`
       <div class="media company-summary-item border-grid-body" id="totalAssets">
@@ -228,8 +267,11 @@ function computeAssets() {
   $("#totalAssetsNumber").html(`<h2>$ ${assets}</h2>`);
 }
 /************ 股市總覽 stock summary *************/
+/***********************************************/
 
+/******************************************************/
 /************** 公司資訊 company detail ****************/
+
 // 資料夾名稱，對照 data-toggle-panel 屬性
 const companyDetailFolderNames = [
   "chart",      // 股價趨勢
@@ -240,7 +282,7 @@ const companyDetailFolderNames = [
   "log",        // 所有紀錄
 ];
 
-// 資料夾開 / 關時的 callback
+// 資料夾開 / 關時的回呼
 const companyDetailFolderCallbacks = {
   "numbers": {
     "open": () => {
@@ -254,27 +296,25 @@ const companyDetailFolderCallbacks = {
   },
 };
 
-function onCompanyDetailFolderStateChanged(folderName, isOpen) {
-  if (companyDetailFolderCallbacks[folderName] !== undefined) {
-    const callback = companyDetailFolderCallbacks[folderName][isOpen ? "open" : "close"];
-    if (callback !== undefined) callback();
-  }
-}
-
+// 檢查所有資料夾的開關狀態
 function checkCompanyDetailFolderStates() {
   setTimeout(() => {
     $(".d-block.h4").each((i, e) => {
+      // 以資料夾圖示種類來判斷該資料夾是否已開啟
+      const isFolderOpen = $(e).find("i").hasClass("fa-folder-open");
+      const folderName = companyDetailFolderNames[i];
 
-      const folderIcon = $(e).find("i");
-      if (folderIcon.hasClass("fa-folder-open")) {
-        onCompanyDetailFolderStateChanged(companyDetailFolderNames[i], true);
-      } else if (folderIcon.hasClass("fa-folder")) {
-        onCompanyDetailFolderStateChanged(companyDetailFolderNames[i], false);
+      // 根據資料夾開關或關來呼叫對應的回呼，未定義則略過
+      const definedFolderCallbacks = companyDetailFolderCallbacks[folderName];
+      if (definedFolderCallbacks !== undefined) {
+        const callback = definedFolderCallbacks[isFolderOpen ? "open" : "close"];
+        if (callback !== undefined) callback();
       }
     });
   }, 0); // 給點時間時等待更新後再 check
 }
 
+// 監聽資料夾的 click 事件，當發生時檢查狀態
 function addCompanyDetailFolderClickListeners() {
   $(".d-block.h4")
     .off("click", checkCompanyDetailFolderStates) // 避免重複加入事件
@@ -286,17 +326,18 @@ function addAdditionalNumbersData() {
   // 先移除之前新增的資訊
   removeAdditionalNumbersInfo();
 
-  const dataValueCells = $(".col-8.col-md-4.col-lg-2.text-right.border-grid");
+  const dataValueCells = $(".col-8.col-md-4.col-lg-2.text-right.border-grid");  // 「數據資訊」的表格欄位
 
-  const stockPrice = Number(dataValueCells[0].innerHTML.match(/[0-9]+/));
-  const revenue = Number(dataValueCells[3].innerHTML.match(/[0-9]+/));
-  const totalStock = Number(dataValueCells[4].innerHTML.match(/[0-9]+/));
+  const stockPrice = Number(dataValueCells[0].innerHTML.match(/[0-9]+/)); // 參考價格
+  const revenue = Number(dataValueCells[3].innerHTML.match(/[0-9]+/));    // 本季營利
+  const totalStock = Number(dataValueCells[4].innerHTML.match(/[0-9]+/)); // 總釋股量
 
-  const earnPerShare = 0.8075 * revenue / totalStock;
-  const PERatio = earnPerShare === 0 ? Infinity : stockPrice / earnPerShare;
-  const benefitRatio = earnPerShare / stockPrice;
+  const earnPerShare = 0.8075 * revenue / totalStock;                         // 每股盈餘
+  const PERatio = earnPerShare === 0 ? Infinity : stockPrice / earnPerShare;  // 本益比
+  const benefitRatio = earnPerShare / stockPrice;                             // 益本比
 
-  function insertData(id, name, value) {
+  // 增加表格欄位
+  function appendDataValueCell(id, name, value) {
     $("[data-toggle-panel=numbers]").parent().nextUntil(".col-12.border-grid").last()
       .after(`
         <div id="${id}" class="col-4 col-md-2 col-lg-2 text-right border-grid">${name}</div>
@@ -304,52 +345,63 @@ function addAdditionalNumbersData() {
       `);
   }
 
-  insertData("earn-per-share", dict[currentLanguage].earnPerShare, earnPerShare.toFixed(2));
-  insertData("pe-ratio", dict[currentLanguage].PERatio, PERatio === Infinity ? "∞" : PERatio.toFixed(2));
-  insertData("benefit-ratio", dict[currentLanguage].benefitRatio, benefitRatio.toFixed(2));
+  appendDataValueCell("earn-per-share", dict[currentLanguage].earnPerShare, earnPerShare.toFixed(2));
+  appendDataValueCell("pe-ratio", dict[currentLanguage].PERatio, PERatio === Infinity ? "∞" : PERatio.toFixed(2));
+  appendDataValueCell("benefit-ratio", dict[currentLanguage].benefitRatio, benefitRatio.toFixed(2));
   console.log("addSomeInfo!!");
 }
 
-// 清出額外新增的資訊
+// 清除先前額外新增的資訊
 function removeAdditionalNumbersInfo() {
   $("#earn-per-share, #earn-per-share-value, #pe-ratio, #pe-ratio-value, #benefit-ratio, #benefit-ratio-value").remove();
 }
+
 /************** 公司資訊 company detail ****************/
+/******************************************************/
 
+/************************************************/
 /************ 帳號資訊 account info **************/
-/************* 持股資訊 & 金額試算 ***/
+
+// 計算持股資訊與金額試算
 function detectOwnStockInfo() {
+  // TODO 此函式需要重整，將計算邏輯和 UI 分開
+
+  const ownStockList = $("[data-toggle-panel=stock]").parent().next().children().filter((i, e) => e.innerHTML.match(/擁有.+公司的.+股票/));
+  if (ownStockList.length === 0) return;  // 持股資訊未開啟或是無資料
+
+  // 「計算此頁資產」按鍵
+  if ($("#compute-btn").length === 0) {
+    $(`<button class="btn btn-danger btn-sm" type="button" id="compute-btn">計算此頁資產</button>`)
+      .on("click", detectOwnStockInfo)
+      .insertAfter($("[data-toggle-panel=stock]").parent().next().children().last());
+  }
+
+  // 「清除總資產訊息」按鍵
+  if ($("#clear-asset-message-btn").length === 0) {
+    $(`<button class="btn btn-danger btn-sm" type="button" id="clear-asset-message-btn">清除總資產訊息</button>`)
+      .on("click", () => $("#asset-display-div").remove())
+      .insertAfter($("[data-toggle-panel=stock]").parent().next().children().last());
+  }
+
+  // 總資產訊息顯示區
+  if ($("#asset-display-div").length === 0) {
+    $(`
+      <div id="asset-display-div">
+        <p>公司股價更新時間為：<span id="asset-display-json-update-time">???</span></p>
+        <p>目前共有 <span id="total-asset">0</span> 元資產</p>
+      </div>
+    `).insertAfter($("[data-toggle-panel=stock]").parent().next().children().last());
+  }
+
   getJsonObj(jsonObj => {
-    const ownStockList = $("[data-toggle-panel=stock]").parent().next().children().filter((i, e) => e.innerHTML.match(/擁有.+公司的.+股票/));
-    if (ownStockList.length === 0) return;  // 持股資訊未開啟 or 無資料
-
-    if ($("#compute-btn").length === 0) {
-      $(`<button class="btn btn-danger btn-sm" type="button" id="compute-btn">計算此頁資產</button>`)
-        .on("click", detectOwnStockInfo)
-        .insertAfter($("[data-toggle-panel=stock]").parent().next().children().last());
-    }
-
-    if ($("#clear-asset-message-btn").length === 0) {
-      $(`<button class="btn btn-danger btn-sm" type="button" id="clear-asset-message-btn">清除總資產訊息</button>`)
-        .on("click", () => $("#asset-display-div").remove())
-        .insertAfter($("[data-toggle-panel=stock]").parent().next().children().last());
-    }
-
-    if ($("#asset-display-div").length === 0) {
-      $(`
-        <div id="asset-display-div">
-          <p>公司股價更新時間為 ${jsonObj.updateTime}</p>
-          <p>目前共有<span id="total-asset">0</span>元資產</p>
-        </div>
-      `).insertAfter($("[data-toggle-panel=stock]").parent().next().children().last());
-    }
+    $("#asset-display-json-update-time").html(jsonObj.updateTime);
 
     let total = 0;
     ownStockList.each((i, e) => {
       const companyLinkMatchResult = e.innerHTML.match(/href="([^"]+)/);
       if (!companyLinkMatchResult) return;
 
-      const companyData = jsonObj.companys.find(e => e.companyLink === companyLinkMatchResult[1]);
+      const companyData = jsonObj.companys.find(c => c.companyLink === companyLinkMatchResult[1]);
       if (!companyData) return;
 
       const price = Number(companyData.companyPrice);
@@ -367,8 +419,6 @@ function detectOwnStockInfo() {
     $("#total-asset").text((_, old) => Number(old) + total);
   });
 }
-
-/************* 稅率試算 *********************/
 
 // 稅率表：資產上限、稅率、累進差額
 const taxRateTable = [
@@ -407,6 +457,7 @@ function addTaxCalcFolder() {
     </div>
   `);
 
+  // 資料夾的開關事件
   $("[data-toggle-panel=tax-calc]").on("click", () => {
     const folderIcon = $("#tax-calc .fa");
 
@@ -435,8 +486,11 @@ function addTaxCalcFolder() {
   });
 }
 /************ 帳號資訊 account info **************/
+/************************************************/
 
+/************************************************/
 /************ 新創計劃 foundation plan ***********/
+
 // 從總投資額推算新創公司的預計股價
 function computeStockPriceFromTotalFund(totalFund) {
   let result = 1;
@@ -446,32 +500,34 @@ function computeStockPriceFromTotalFund(totalFund) {
 
 // 計算新創公司的額外資訊
 function computeAdditionalFoundationPlanInfo(i, inCardMode) {
+  // 個人投資額
   const personalFund = Number(
     inCardMode
       ? $(".company-card-mask")[i].children[6].innerText.match(/[0-9]+/)[0]
       : ($(`.media-body.row.border-grid-body:eq(${i}) .mb-1`)[0].innerText.match(/[0-9]+/) || [0])[0]
   );
 
+  // 總投資額
   const totalFund = Number(
     inCardMode
       ? $(".company-card-mask")[i].children[5].innerText.match(/[0-9]+/)[0]
       : $(`.media-body.row.border-grid-body:eq(${i}) .col-8.col-lg-3.text-right.border-grid:eq(3)`)[0].innerText.match(/[0-9]+/)[0]
   );
 
-  const stockPrice = computeStockPriceFromTotalFund(totalFund);
-  const stockAmount = personalFund / stockPrice;
-  const stockRight = personalFund / totalFund;
+  const stockPrice = computeStockPriceFromTotalFund(totalFund);   // 預計股價
+  const stockAmount = personalFund / stockPrice;                  // 預計持股
+  const stockRight = personalFund / totalFund;                    // 預計股權
   return { stockPrice, stockAmount, stockRight };
 }
 
+// 計算該頁面新創公司的額外資訊並顯示
 function addAdditionalFoundationPlanInfo() {
   const displayModeIcon = $(".btn.btn-secondary.mr-1 i");
-  const inCardMode = displayModeIcon.hasClass("fa-th");
+  const inCardMode = displayModeIcon.hasClass("fa-th");   // 是否以卡片模式顯示
 
   const companies = $(inCardMode ? ".company-card-mask" : ".media-body.row.border-grid-body");
   companies.each((i, e) => {
-    console.log(`${i}: ${$(e).find(".title-starter").text().trim()}`);
-    if ($(e).find("div[name=foundationPlanNewInfo]").length !== 0) return;
+    if ($(e).find("div[name=foundationPlanNewInfo]").length !== 0) return; // 已加入過資訊就略過
 
     const { stockPrice, stockAmount, stockRight } = computeAdditionalFoundationPlanInfo(i, inCardMode);
 
@@ -504,6 +560,7 @@ function addAdditionalFoundationPlanInfo() {
   });
 }
 
+// 監聽新創計劃搜尋欄的輸入
 function addFoundationPlanSearchInputListener() {
   // 既有公司搜尋提示
   $(".form-control")
@@ -513,17 +570,16 @@ function addFoundationPlanSearchInputListener() {
 
 // 找尋並顯示在 jsonObj 裡已建檔的公司名冊
 function listExistingCompanies() {
-  if ($("#displayResult").length !== 0) {
-    $("#displayResult").remove();
-  }
+  $("#displayResult").remove(); // 移除舊有資料
 
   const searchString = $(".form-control").val();
-  if (!searchString) return;
+  if (!searchString) return;  // 略過空資料
 
-  const searchRegExp = new RegExp(searchString, "i");
+  const searchRegExp = new RegExp(searchString, "i"); // ignore case
 
   getJsonObj(jsonObj => {
-    const matchedCompanies = jsonObj.companys.filter(c => searchRegExp.test(c.companyName) || searchRegExp.test(c.companyTags));  // WTF!?
+    // 找出名稱或 tag 符合的公司並顯示
+    const matchedCompanies = jsonObj.companys.filter(c => searchRegExp.test(c.companyName) || searchRegExp.test(c.companyTags));  // WTF is companys!?
 
     $(`
       <div id="displayResult" style="display: block; height: 100px; margin-top: 16px; overflow: scroll; overflow-x: hidden;">
@@ -534,11 +590,17 @@ function listExistingCompanies() {
   });
 }
 /************ 新創計劃 foundation plan ***********/
+/************************************************/
 
-/**************aboutMe****************/
+/***************************************/
+/************** 關於插件 ****************/
 
+// 顯示插件資訊
 function showAboutScript() {
+  // （暴力地）移除目前頁面的顯示資訊…
   $(".card-block").remove();
+
+  // …並改成顯示插件資訊
   $(".card").append(`
     <div class="card-block">
       <div class="col-5"><h1 class="card-title mb-1">關於插件</h1></div>
@@ -577,19 +639,23 @@ function showAboutScript() {
     </div>
   `);
 
+  // 「更新記錄」資料夾
   const releaseHistoryFolder = $("#release-history-folder");
   releaseHistoryFolder.on("click", () => {
     const releaseHistoryFolderIcon = releaseHistoryFolder.find(".fa");
     if (releaseHistoryFolderIcon.hasClass("fa-folder")) {
+      // 資料夾打開，顯示更新記錄
       releaseHistoryFolderIcon.removeClass("fa-folder").addClass("fa-folder-open");
       releaseHistoryFolder.after((releaseHistoryList.map(({ version, description }) => createReleaseHistoryDiv(version, description)).join("")));
     } else {
+      // 資料夾關閉，移除更新記錄
       releaseHistoryFolderIcon.removeClass("fa-folder-open").addClass("fa-folder");
       releaseHistoryFolder.nextAll(".col-12.border-grid").remove();
     }
   });
 }
 
+// 更新紀錄列表
 const releaseHistoryList = [
   {
     version: "2.800",
@@ -648,6 +714,7 @@ const releaseHistoryList = [
   },
 ];
 
+// 建立對應版本的更新說明
 function createReleaseHistoryDiv(version, description) {
   return `
     <div class="col-12 border-grid">
@@ -656,12 +723,16 @@ function createReleaseHistoryDiv(version, description) {
     </div>
   `;
 }
+/************** 關於插件 ****************/
+/***************************************/
 
-/**************aboutMe****************/
-/*************Language****************/
+/**************************************/
+/************* 語言相關 ****************/
 
+// 目前的語言
 let currentLanguage = window.localStorage.getItem("PM_language") || "tw";
 
+// 切換顯示語言
 function changeLanguage(language) {
   if (currentLanguage === language) return;
   currentLanguage = language;
@@ -674,6 +745,7 @@ function t(key) {
   return dict[currentLanguage][key];
 }
 
+// 翻譯表
 const dict = {
   tw: {
     language: "選擇語言",
@@ -756,4 +828,5 @@ const dict = {
     goToCompany: "窩要ㄑ找",
   },
 };
-/*************Language****************/
+/************* 語言相關 ****************/
+/**************************************/
