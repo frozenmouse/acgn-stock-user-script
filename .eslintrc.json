@@ -6,7 +6,8 @@
     "greasemonkey": true
   },
   "globals": {
-    "ACGNListener": true
+    "ACGNListener": true,
+    "FlowRouter": true
   },
   "extends": "eslint:recommended",
   "parserOptions": {

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ACGN股票系統每股營利外掛
 // @namespace    http://tampermonkey.net/
-// @version      2.801
+// @version      2.810
 // @description  try to take over the world!
 // @author       papago & Ming & frozenmouse
 // @match        http://acgn-stock.com/*
@@ -80,6 +80,7 @@ function onPageLoaded() {
 // 當「股市總覽」頁面已載入時進行的回呼
 function onStockSummaryPageLoaded() {
   computeAssets();
+  addJumpToPageForm(page => FlowRouter.go(`/company/${page}`));
 }
 
 // 當「公司資訊」頁面已載入時進行的回呼
@@ -98,6 +99,7 @@ function onAccountInfoPageLoaded() {
 function onFoundationPlanPageLoaded() {
   addAdditionalFoundationPlanInfo();
   addFoundationPlanSearchInputListener();
+  addJumpToPageForm(page => FlowRouter.go(`/foundation/${page}`));
 }
 
 /**
@@ -223,6 +225,34 @@ function checkGreasyForkScriptUpdate(id) {
 
 /************************************************/
 /************ 股市總覽 stock summary *************/
+
+function addJumpToPageForm(callback) {
+  // 加入跳頁輸入框至分頁欄底下
+  if ($("#jump-to-page-form").length === 0) {
+    $("#main nav:eq(1)").append(`
+      <form id="jump-to-page-form" class="form-inline justify-content-center" autocomplete="off">
+        <div class="form-group">
+          <div class="input-group">
+            <span class="input-group-addon">跳至頁數</span>
+            <input class="form-control" type="number" min="1" name="page"
+              placeholder="請指定頁數…" maxlength="4" autocomplete="false"/>
+            <span class="input-group-btn">
+              <button class="btn btn-primary">
+                走！
+              </button>
+            </span>
+          </div>
+        </div>
+      </form>
+    `);
+    $("#jump-to-page-form").submit(() => {
+      const page = parseInt($("#jump-to-page-form input[name=page]").val());
+      if (page) callback(page);
+      return false; // 避免系統預設的送出事件
+    });
+  }
+  $("#jump-to-page-form input[name=page]").val(FlowRouter.current().params.page);
+}
 
 // 計算該頁面所持有的股票總額，並顯示在頁面上
 function computeAssets() {
@@ -657,6 +687,10 @@ function showAboutScript() {
 
 // 更新紀錄列表
 const releaseHistoryList = [
+  {
+    version: "2.810",
+    description: `<p><span class="text-info">股市總覽</span>與<span class="text-info">新創計劃</span>增加了跳頁功能，可直接跳至指定頁數。</p>`,
+  },
   {
     version: "2.800",
     description: `
