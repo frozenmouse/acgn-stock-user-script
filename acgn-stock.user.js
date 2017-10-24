@@ -171,7 +171,7 @@ function addNavItems() {
 
 // 對所有廣告點擊關閉
 function blockAds() {
-  $(".fixed-bottom .media.bg-info.text.px-2.py-1.my-2.rounded .d-flex a").click();
+  $(".fixed-bottom a.btn").click();
 }
 
 /*************************************/
