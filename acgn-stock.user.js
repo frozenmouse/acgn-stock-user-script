@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ACGN股票系統每股營利外掛
 // @namespace    http://tampermonkey.net/
-// @version      2.810
+// @version      2.811
 // @description  try to take over the world!
 // @author       papago & Ming & frozenmouse
 // @match        http://acgn-stock.com/*
@@ -23,13 +23,6 @@
  * 檢查更新時，若主要或次要版本號變動，則顯示按鍵提示使用者更新
  * （參見 checkScriptUpdates()）
  */
-
-// 程式進入點
-(function() {
-  observeLoadingOverlay();
-  setTimeout(addNavItems, 0);
-  setTimeout(checkScriptUpdates, 0);
-})();
 
 // 觀察頁面是否進入或離開載入狀態（是否正在轉圈圈）
 function observeLoadingOverlay() {
@@ -864,3 +857,10 @@ const dict = {
 };
 /************* 語言相關 ****************/
 /**************************************/
+
+// 程式進入點
+(function() {
+  observeLoadingOverlay();
+  setTimeout(addNavItems, 0);
+  setTimeout(checkScriptUpdates, 0);
+})();
