@@ -7,7 +7,11 @@
   },
   "globals": {
     "ACGNListener": true,
-    "FlowRouter": true
+    "ReactiveVar": true,
+    "FlowRouter": true,
+    "Template": true,
+    "Meteor": true,
+    "require": true
   },
   "extends": "eslint:recommended",
   "parserOptions": {

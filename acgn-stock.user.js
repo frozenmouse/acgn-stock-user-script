@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ACGN股票系統每股營利外掛
 // @namespace    http://tampermonkey.net/
-// @version      2.811
+// @version      3.000
 // @description  try to take over the world!
 // @author       papago & Ming & frozenmouse
 // @match        http://acgn-stock.com/*
@@ -24,113 +24,237 @@
  * （參見 checkScriptUpdates()）
  */
 
-// 觀察頁面是否進入或離開載入狀態（是否正在轉圈圈）
-function observeLoadingOverlay() {
-  // 頁面處於載入狀態時會出現的蓋版元素（俗稱「轉圈圈」）
-  const loadingOverlay = $("#loading .loadingOverlay")[0];
+const {dbVariables} = require("./db/dbVariables");
+const {dbCompanies} = require("./db/dbCompanies");
+const {dbDirectors} = require("./db/dbDirectors");
 
-  // 觀察 loadingOverlay 的 class attribute 是否變動
-  new MutationObserver(mutations => {
-    mutations.filter(m => m.attributeName === "class").forEach(m => {
-      if (m.target.classList.contains("d-none")) {
-        // 轉圈圈隱藏 => 已脫離載入狀態
-        onPageLoaded();
+// 用公司資訊算出 EPS 與本益比
+function computeEpsAndPeRatio({totalRelease, profit, listPrice}) {
+  const eps = profit * 0.8075 / totalRelease;
+  const peRatio = listPrice / eps;
+  return {eps, peRatio};
+}
+
+Template.prototype.getHelper = function(name) {
+  return this.__helpers[` ${name}`];
+};
+
+// 有分頁顯示時，插入跳頁表單
+Template.pagination.onRendered(() => {
+  const targetPageVar = new ReactiveVar();
+  console.log("pagination onRendered");
+  const instance = Template.instance();
+  const jumpToPageForm = $(`
+    <form id="jump-to-page-form" class="form-inline justify-content-center" autocomplete="off">
+      <div class="form-group">
+        <div class="input-group">
+          <span class="input-group-addon">跳至頁數</span>
+          <input class="form-control" type="number" min="1" name="page"
+            placeholder="請指定頁數…" maxlength="4" autocomplete="off"/>
+          <span class="input-group-btn">
+            <button class="btn btn-primary">
+              走！
+            </button>
+          </span>
+        </div>
+      </div>
+    </form>
+  `);
+
+  // 表單送出 -> 設定 targetPageVar
+  jumpToPageForm.submit(() => {
+    const targetPage = Number(jumpToPageForm.find("input[name=page]").val());
+    targetPageVar.set(targetPage);
+    return false; // 避免系統預設的送出事件
+  });
+
+  // 接收 targetPageVar -> 跳頁或設定 data.offset
+  instance.autorun(() => {
+    const data = Template.currentData();
+    const totalCount = dbVariables.get(data.useVariableForTotalCount);
+    const totalPages = Math.ceil(totalCount / data.dataNumberPerPage);
+
+    // 目標頁面不超過上下限
+    const targetPage = Math.max(1, Math.min(targetPageVar.get(), totalPages));
+
+    if (!targetPage) return;
+
+    if (data.useHrefRoute) {
+      FlowRouter.go(FlowRouter.path(FlowRouter.getRouteName(), {page: targetPage}));
+    } else {
+      data.offset.set((targetPage - 1) * data.dataNumberPerPage);
+    }
+  });
+
+  // 接收 data -> 處理表單顯示
+  instance.autorun(() => {
+    const data = Template.currentData();
+    const totalCount = dbVariables.get(data.useVariableForTotalCount);
+    const totalPages = Math.ceil(totalCount / data.dataNumberPerPage);
+    const haveData = Template.pagination.getHelper("haveData").bind(data);
+    const pages = Template.pagination.getHelper("pages").bind(data);
+    const pageItemClass = Template.pagination.getHelper("pageItemClass").bind(data);
+
+    if (haveData()) {
+      // 分頁條目前選擇的頁面
+      const activePage = pages().find(p => /active/.test(pageItemClass(p)));
+      console.log(`activePage: ${activePage} / ${totalPages}`);
+
+      jumpToPageForm.find("input[name=page]")
+        .val(activePage)
+        .attr("max", totalPages);
+
+      // nav 不會馬上出現，需要 setTimeout 延後
+      setTimeout(() => instance.$("nav").append(jumpToPageForm), 0);
+    }
+  });
+});
+
+// 附加顯示每股營利、本益比、益本比在數據資訊
+Template.companyDetailTable.onRendered(() => {
+  const instance = Template.instance();
+  const isDisplayPanel = Template.companyDetailTable.getHelper("isDisplayPanel");
+
+  const dataCellsSample = $(`
+    <div class="col-4 col-md-2 col-lg-2 text-right border-grid"/>
+    <div class="col-8 col-md-4 col-lg-2 text-right border-grid"/>
+  `);
+
+  const epsDataCells = dataCellsSample.clone();
+  epsDataCells.filter("div:eq(0)").html(t("earnPerShare"));
+
+  const peRatioCells = dataCellsSample.clone();
+  peRatioCells.filter("div:eq(0)").html(t("PERatio"));
+
+  const epRatioCells = dataCellsSample.clone();
+  epRatioCells.filter("div:eq(0)").html(t("benefitRatio"));
+
+  const additionalDataList = [epsDataCells, peRatioCells, epRatioCells];
+
+  instance.autorun(() => {
+    const companyId = FlowRouter.getParam("companyId");
+    const companyData = dbCompanies.findOne({_id: companyId});
+    if (!companyData) return;
+
+    const {eps, peRatio} = computeEpsAndPeRatio(companyData);
+    epsDataCells.filter("div:eq(1)").html(`$ ${eps.toFixed(2)}`);
+    peRatioCells.filter("div:eq(1)").html(isFinite(peRatio) ? peRatio.toFixed(2) : "∞");
+    epRatioCells.filter("div:eq(1)").html((1 / peRatio).toFixed(2));
+
+    if (isDisplayPanel("numbers")) {
+      setTimeout(() => {
+        additionalDataList.forEach(e => {
+          // 附加在數據資訊展開後的最後一個元素後面
+          instance.$("[data-toggle-panel=numbers]")
+            .parent().nextUntil(".col-12").last()
+            .after(e);
+        });
+      }, 0);
+    } else {
+      additionalDataList.forEach(e => e.detach());
+    }
+
+    console.log(`numbers panel opened: ${isDisplayPanel("numbers")}`);
+  });
+});
+
+// 計算該頁面所持有的股票總額並顯示
+Template.companyList.onRendered(() => {
+  const totalAssetsDisplay = $(`
+    <div class="media company-summary-item border-grid-body">
+      <div class="col-6 text-right border-grid">
+        <h2>${t("totalAssetsInThisPage")}</h2>
+      </div>
+      <div class="col-6 text-right border-grid">
+        <h2 id="total-assets-result"></h2>
+      </div>
+    </div>
+  `);
+
+  const instance = Template.instance();
+  instance.autorun(() => {
+    const ownStocks = dbDirectors.find({ userId: Meteor.userId() }).fetch();
+    const companies = dbCompanies.find().fetch().reduce((obj, c) => Object.assign(obj, {[c._id]: c}), {});
+    const totalAssets = ownStocks.filter(({companyId}) => companies[companyId])
+      .reduce((sum, {companyId, stocks}) => sum + companies[companyId].listPrice * stocks, 0);
+    console.log(`totalAssets = ${totalAssets}`);
+
+    instance.$(".card-title.mb-1").after(totalAssetsDisplay);
+    totalAssetsDisplay.find("#total-assets-result").html(`$ ${totalAssets}`);
+  });
+});
+
+// 增加更多資訊在股市總覽的公司卡片上
+Template.companyListCard.onRendered(() => {
+  function insertAfterLastRow(row) {
+    instance.$(".row-info").last().after(row);
+  }
+
+  function hideRow(row) {
+    row.removeClass("d-flex").addClass("d-none");
+  }
+
+  function showRow(row) {
+    row.removeClass("d-none").addClass("d-flex");
+  }
+
+  const instance = Template.instance();
+  const getStockAmount = Template.companyListCard.getHelper("getStockAmount");
+  const infoRowSample = instance.$(".row-info").last();
+
+  const ownValueRow = infoRowSample.clone();
+  ownValueRow.find("p:eq(0)").html("持有總值");
+  insertAfterLastRow(ownValueRow);
+
+  const profitRow = infoRowSample.clone();
+  profitRow.find("p:eq(0)").html("本季營利");
+  insertAfterLastRow(profitRow);
+
+  const peRatioRow = infoRowSample.clone();
+  peRatioRow.find("p:eq(0)").html("本益比");
+  insertAfterLastRow(peRatioRow);
+
+  const dividendRow = infoRowSample.clone();
+  dividendRow.find("p:eq(0)").html("預計分紅");
+  insertAfterLastRow(dividendRow);
+
+  const managerSalaryRow = infoRowSample.clone();
+  managerSalaryRow.find("p:eq(0)").html("經理薪水");
+  insertAfterLastRow(managerSalaryRow);
+
+  instance.autorun(() => {
+    // 取得存公司資料的 ReactiveVar，當有變動時會重跑一次 autorun 的 callback
+    const companyData = instance.view.parentView.dataVar.get();
+    const {_id: companyId, profit, totalRelease, listPrice, manager} = companyData;
+    const {peRatio} = computeEpsAndPeRatio(companyData);
+
+    profitRow.find("p:eq(1)").html(`$ ${profit}`);
+    peRatioRow.find("p:eq(1)").html(isFinite(peRatio) ? peRatio.toFixed(2) : "∞");
+
+    if (!Meteor.user()) {
+      hideRow(ownValueRow);
+      hideRow(dividendRow);
+      hideRow(managerSalaryRow);
+    } else {
+      const stockAmount = getStockAmount(companyId);
+      const ownValue = stockAmount * listPrice;
+      ownValueRow.find("p:eq(1)").html(`$ ${ownValue}`);
+      showRow(ownValueRow);
+
+      const dividend = Math.round(profit * 0.8075 * stockAmount / totalRelease);
+      dividendRow.find("p:eq(1)").html(`$ ${dividend}`);
+      showRow(dividendRow);
+
+      if (Meteor.userId() !== manager) {
+        hideRow(managerSalaryRow);
       } else {
-        // 顯示轉圈圈 => 正處於載入狀態
-        onPageLoading();
+        const managerSalary = Math.round(profit * 0.05);
+        managerSalaryRow.find("p:eq(1)").html(`$ ${managerSalary}`);
+        showRow(managerSalaryRow);
       }
-    });
-  }).observe(loadingOverlay, { attributes: true });
-}
-
-// 頁面在載入狀態時進行此回呼
-function onPageLoading() {
-  console.log(`Page loading: ${document.location.href}`);
-}
-
-// 頁面離開載入狀態時進行此回呼
-function onPageLoaded() {
-  const currentUrl = document.location.href;
-  console.log(`Page loaded: ${currentUrl}`);
-
-  // 頁面 url 樣式的回呼表
-  const urlPatternCallbackTable = [
-    { pattern: /company\/[0-9]+/, callback: onStockSummaryPageLoaded },
-    { pattern: /company\/detail/, callback: onCompanyDetailPageLoaded },
-    { pattern: /accountInfo/, callback: onAccountInfoPageLoaded },
-    { pattern: /foundation\/[0-9]+/, callback: onFoundationPlanPageLoaded },
-  ];
-
-  // 匹配當前頁面 url 的樣式並進行對應的回呼
-  urlPatternCallbackTable.forEach(({ pattern, callback }) => {
-    if (currentUrl.match(pattern)) {
-      // loadingOverlay 消失後，需要給點時間讓頁面的載入全部跑完
-      setTimeout(callback, 100);
     }
   });
-}
-
-// 當「股市總覽」頁面已載入時進行的回呼
-function onStockSummaryPageLoaded() {
-  computeAssets();
-  addJumpToPageForm(page => FlowRouter.go(`/company/${page}`));
-}
-
-// 當「公司資訊」頁面已載入時進行的回呼
-function onCompanyDetailPageLoaded() {
-  checkCompanyDetailFolderStates();
-  addCompanyDetailFolderClickListeners();
-}
-
-// 當「帳號資訊」頁面已載入時進行的回呼
-function onAccountInfoPageLoaded() {
-  addTaxCalcFolder();   // 稅率資料夾
-  detectOwnStockInfo(); // 持股資訊資料夾
-}
-
-// 當「新創計劃」頁面已載入時進行的回呼
-function onFoundationPlanPageLoaded() {
-  addAdditionalFoundationPlanInfo();
-  addFoundationPlanSearchInputListener();
-  addJumpToPageForm(page => FlowRouter.go(`/foundation/${page}`));
-}
-
-/**
- * 以非同步方式取得另外整理過的公司資料 json
- *
- * 考慮資料更新週期極長，若是已經取得過資料，就將之前取得的資料快取回傳
- *
- * 使用方法：
- * getJsonObj(jsonObj => {
- *   // 這裡的 jsonObj 即為該 json 物件
- * })
- */
-const getJsonObj = (() => {
-  // 先前取得的 json 快取
-  let jsonObjCache = null;
-
-  const jsonUrl = "https://jsonbin.org/abcd1357/ACGNstock-company";
-  const request = new XMLHttpRequest();
-  request.open("GET", jsonUrl); // 非同步 GET
-  request.addEventListener("load", () => {
-    console.log("got jsonObj");
-    jsonObjCache = JSON.parse(request.responseText);
-  });
-  request.send();
-
-  return (callback) => {
-    // 若快取資料存在，則直接回傳快取
-    if (jsonObjCache !== null) {
-      callback(jsonObjCache);
-      return;
-    }
-
-    // 若無快取資料，則加入事件監聽，等載入後再回傳資料
-    request.addEventListener("load", function() {
-      callback(jsonObjCache);
-    });
-  };
-})();
+});
 
 // 新增按鈕至上面的導覽區
 function addNavItems() {
@@ -217,231 +341,7 @@ function checkGreasyForkScriptUpdate(id) {
 /*************************************/
 
 /************************************************/
-/************ 股市總覽 stock summary *************/
-
-function addJumpToPageForm(callback) {
-  // 加入跳頁輸入框至分頁欄底下
-  if ($("#jump-to-page-form").length === 0) {
-    $("#main nav:eq(1)").append(`
-      <form id="jump-to-page-form" class="form-inline justify-content-center" autocomplete="off">
-        <div class="form-group">
-          <div class="input-group">
-            <span class="input-group-addon">跳至頁數</span>
-            <input class="form-control" type="number" min="1" name="page"
-              placeholder="請指定頁數…" maxlength="4" autocomplete="false"/>
-            <span class="input-group-btn">
-              <button class="btn btn-primary">
-                走！
-              </button>
-            </span>
-          </div>
-        </div>
-      </form>
-    `);
-    $("#jump-to-page-form").submit(() => {
-      const page = parseInt($("#jump-to-page-form input[name=page]").val());
-      if (page) callback(page);
-      return false; // 避免系統預設的送出事件
-    });
-  }
-  $("#jump-to-page-form input[name=page]").val(FlowRouter.current().params.page);
-}
-
-// 計算該頁面所持有的股票總額，並顯示在頁面上
-function computeAssets() {
-  let assets = 0; // 總資產
-
-  // 是否在卡片模式
-  const isInCardMode = $(".col-12.col-md-6.col-lg-4.col-xl-3").length > 0;
-
-  // 取出每個公司的參考價格與持有數，加總到總資產
-  if (isInCardMode) {
-    $(".company-card").each((i, e) => {
-      const price = Number(e.innerText.match(/\$ [0-9]+\(([0-9]+)\)/)[1]);
-      const hold = Number(e.innerText.match(/([0-9]+).+%.+/)[1]);
-      const subtotal = price * hold;
-      console.log(`價=${price}, 持=${hold}, 總=${subtotal}`);
-      assets += subtotal;
-    });
-  } else {
-    $(".media-body.row.border-grid-body").each((i, e) => {
-      const price = Number(e.innerText.match(/\$ [0-9]+\(([0-9]+)\)/)[1]);
-      const hold = Number(e.innerText.match(/您在該公司持有([0-9]+)數量的股份/)[1]);
-      const subtotal = price * hold;
-      console.log(`價=${price}, 持=${hold}, 總=${subtotal}`);
-      assets += subtotal;
-    });
-  }
-
-  console.log("本頁持股價值: " + assets);
-
-  // 顯示該頁面的持股總價值
-  if ($("#totalAssetsNumber").length === 0) {
-    $(`
-      <div class="media company-summary-item border-grid-body" id="totalAssets">
-        <div class="col-6 text-right border-grid" id="totalAssetsTitle">
-          <h2>${t("totalAssetsInThisPage")}</h2>
-        </div>
-      </div>
-    `).insertAfter($(".card-title.mb-1")[0]);
-    $(`<div class="col-6 text-right border-grid" id="totalAssetsNumber"/>`)
-      .insertAfter($("#totalAssetsTitle")[0]);
-  }
-  $("#totalAssetsNumber").html(`<h2>$ ${assets}</h2>`);
-}
-/************ 股市總覽 stock summary *************/
-/***********************************************/
-
-/******************************************************/
-/************** 公司資訊 company detail ****************/
-
-// 資料夾名稱，對照 data-toggle-panel 屬性
-const companyDetailFolderNames = [
-  "chart",      // 股價趨勢
-  "numbers",    // 數據資訊
-  "order",      // 交易訂單
-  "products",   // 產品中心
-  "director",   // 董事會
-  "log",        // 所有紀錄
-];
-
-// 資料夾開 / 關時的回呼
-const companyDetailFolderCallbacks = {
-  "numbers": {
-    "open": () => {
-      console.log("Open numbers folder");
-      addAdditionalNumbersData();
-    },
-    "close": () => {
-      console.log("Close numbers folder");
-      removeAdditionalNumbersInfo();
-    },
-  },
-};
-
-// 檢查所有資料夾的開關狀態
-function checkCompanyDetailFolderStates() {
-  setTimeout(() => {
-    $(".d-block.h4").each((i, e) => {
-      // 以資料夾圖示種類來判斷該資料夾是否已開啟
-      const isFolderOpen = $(e).find("i").hasClass("fa-folder-open");
-      const folderName = companyDetailFolderNames[i];
-
-      // 根據資料夾開關或關來呼叫對應的回呼，未定義則略過
-      const definedFolderCallbacks = companyDetailFolderCallbacks[folderName];
-      if (definedFolderCallbacks !== undefined) {
-        const callback = definedFolderCallbacks[isFolderOpen ? "open" : "close"];
-        if (callback !== undefined) callback();
-      }
-    });
-  }, 0); // 給點時間時等待更新後再 check
-}
-
-// 監聽資料夾的 click 事件，當發生時檢查狀態
-function addCompanyDetailFolderClickListeners() {
-  $(".d-block.h4")
-    .off("click", checkCompanyDetailFolderStates) // 避免重複加入事件
-    .on("click", checkCompanyDetailFolderStates);
-}
-
-// 計算每股盈餘、本益比、益本比並顯示
-function addAdditionalNumbersData() {
-  // 先移除之前新增的資訊
-  removeAdditionalNumbersInfo();
-
-  const dataValueCells = $(".col-8.col-md-4.col-lg-2.text-right.border-grid");  // 「數據資訊」的表格欄位
-
-  const stockPrice = Number(dataValueCells[0].innerHTML.match(/[0-9]+/)); // 參考價格
-  const revenue = Number(dataValueCells[3].innerHTML.match(/[0-9]+/));    // 本季營利
-  const totalStock = Number(dataValueCells[4].innerHTML.match(/[0-9]+/)); // 總釋股量
-
-  const earnPerShare = 0.8075 * revenue / totalStock;                         // 每股盈餘
-  const PERatio = earnPerShare === 0 ? Infinity : stockPrice / earnPerShare;  // 本益比
-  const benefitRatio = earnPerShare / stockPrice;                             // 益本比
-
-  // 增加表格欄位
-  function appendDataValueCell(id, name, value) {
-    $("[data-toggle-panel=numbers]").parent().nextUntil(".col-12.border-grid").last()
-      .after(`
-        <div id="${id}" class="col-4 col-md-2 col-lg-2 text-right border-grid">${name}</div>
-        <div id="${id}-value" class="col-8 col-md-4 col-lg-2 text-right border-grid">${value}</div>
-      `);
-  }
-
-  appendDataValueCell("earn-per-share", dict[currentLanguage].earnPerShare, earnPerShare.toFixed(2));
-  appendDataValueCell("pe-ratio", dict[currentLanguage].PERatio, PERatio === Infinity ? "∞" : PERatio.toFixed(2));
-  appendDataValueCell("benefit-ratio", dict[currentLanguage].benefitRatio, benefitRatio.toFixed(2));
-  console.log("addSomeInfo!!");
-}
-
-// 清除先前額外新增的資訊
-function removeAdditionalNumbersInfo() {
-  $("#earn-per-share, #earn-per-share-value, #pe-ratio, #pe-ratio-value, #benefit-ratio, #benefit-ratio-value").remove();
-}
-
-/************** 公司資訊 company detail ****************/
-/******************************************************/
-
-/************************************************/
 /************ 帳號資訊 account info **************/
-
-// 計算持股資訊與金額試算
-function detectOwnStockInfo() {
-  // TODO 此函式需要重整，將計算邏輯和 UI 分開
-
-  const ownStockList = $("[data-toggle-panel=stock]").parent().next().children().filter((i, e) => e.innerHTML.match(/擁有.+公司的.+股票/));
-  if (ownStockList.length === 0) return;  // 持股資訊未開啟或是無資料
-
-  // 「計算此頁資產」按鍵
-  if ($("#compute-btn").length === 0) {
-    $(`<button class="btn btn-danger btn-sm" type="button" id="compute-btn">計算此頁資產</button>`)
-      .on("click", detectOwnStockInfo)
-      .insertAfter($("[data-toggle-panel=stock]").parent().next().children().last());
-  }
-
-  // 「清除總資產訊息」按鍵
-  if ($("#clear-asset-message-btn").length === 0) {
-    $(`<button class="btn btn-danger btn-sm" type="button" id="clear-asset-message-btn">清除總資產訊息</button>`)
-      .on("click", () => $("#asset-display-div").remove())
-      .insertAfter($("[data-toggle-panel=stock]").parent().next().children().last());
-  }
-
-  // 總資產訊息顯示區
-  if ($("#asset-display-div").length === 0) {
-    $(`
-      <div id="asset-display-div">
-        <p>公司股價更新時間為：<span id="asset-display-json-update-time">???</span></p>
-        <p>目前共有 <span id="total-asset">0</span> 元資產</p>
-      </div>
-    `).insertAfter($("[data-toggle-panel=stock]").parent().next().children().last());
-  }
-
-  getJsonObj(jsonObj => {
-    $("#asset-display-json-update-time").html(jsonObj.updateTime);
-
-    let total = 0;
-    ownStockList.each((i, e) => {
-      const companyLinkMatchResult = e.innerHTML.match(/href="([^"]+)/);
-      if (!companyLinkMatchResult) return;
-
-      const companyData = jsonObj.companys.find(c => c.companyLink === companyLinkMatchResult[1]);
-      if (!companyData) return;
-
-      const price = Number(companyData.companyPrice);
-      const amount = Number(e.innerHTML.match(/([0-9]+)股/)[1]);
-      const subtotal = price * amount;
-      total += subtotal;
-
-      if (!e.innerHTML.match(/參考股價/)) {
-        e.innerHTML += `參考股價 ${price} 元，有 ${subtotal} 元資產。`;
-      }
-    });
-
-    const pageNum = $(".page-item.active").text();
-    $("#asset-display-div").append(`<p>第 ${pageNum} 頁共有 ${total} 元資產</p>`);
-    $("#total-asset").text((_, old) => Number(old) + total);
-  });
-}
 
 // 稅率表：資產上限、稅率、累進差額
 const taxRateTable = [
@@ -469,50 +369,101 @@ const taxRateTable = [
 ];
 
 // 加入稅金試算資料夾
-function addTaxCalcFolder() {
-  if ($("#tax-calc").length !== 0) return;
+const taxCalcFolderExpandedVar = new ReactiveVar(false);
 
-  $(".row.border-grid-body").append(`
-    <div class="col-12 border-grid" id="tax-calc">
+Template.accountInfo.onRendered(() => {
+  const instance = Template.instance();
+
+  const taxCalcFolderHead = $(`
+    <div class="col-12 border-grid">
       <a class="d-block h4" href="" data-toggle-panel="tax-calc">
         ${t("taxCalculation")} <i class="fa fa-folder"/>
       </a>
     </div>
   `);
+  const taxCalcFolderIcon = taxCalcFolderHead.find("i.fa");
+  const taxCalcFolderBody = $(`
+    <div class="col-12 text-right border-grid">
+      <h5>${t("enterTotalAssets")}</h5>
+      <input class="form-control" type="number">
+      <h5>${t("yourTax")} <span id="tax-calc-output">$ 0</span></h5>
+    </div>
+  `);
+  const taxCalcInput = taxCalcFolderBody.find("input");
+  const taxCalcOutput = taxCalcFolderBody.find("span#tax-calc-output");
 
-  // 資料夾的開關事件
-  $("[data-toggle-panel=tax-calc]").on("click", () => {
-    const folderIcon = $("#tax-calc .fa");
+  taxCalcInput.on("input", () => {
+    const input = Number(taxCalcInput.val().match(/[0-9]+/));
+    const { rate, adjustment } = taxRateTable.find(e => input < e.asset);
+    const output = Math.ceil(input * rate - adjustment);
+    taxCalcOutput.text(`$ ${output}`);
+  });
 
-    if (folderIcon.hasClass("fa-folder")) {
-      folderIcon.addClass("fa-folder-open").removeClass("fa-folder");
+  setTimeout(() => instance.$(".card-block:eq(1) .row").append(taxCalcFolderHead), 0);
 
-      $("#tax-calc").after(`
-        <div class="col-12 text-right border-grid" id="tax-calc-content">
-          <h5>${t("enterTotalAssets")}</h5>
-          <input id="tax-calc-input" class="form-control" type="text">
-          <h5>${t("yourTax")} <span id="tax-calc-output">$ 0</span></h5>
-        </div>
-      `);
+  instance.autorun(() => {
+    const taxCalcFolderExpanded = taxCalcFolderExpandedVar.get();
 
-      // 輸入時即時運算稅金
-      $("#tax-calc-input").on("input", () => {
-        const input = Number($("#tax-calc-input").val().match(/[0-9]+/));
-        const { rate, adjustment } = taxRateTable.find(e => input < e.asset);
-        const output = Math.ceil(input * rate - adjustment);
-        $("#tax-calc-output").text(`$ ${output}`);
-      });
+    if (taxCalcFolderExpanded) {
+      setTimeout(() => {
+        taxCalcFolderIcon.addClass("fa-folder-open").removeClass("fa-folder");
+        taxCalcFolderBody.insertAfter(taxCalcFolderHead);
+      }, 0);
     } else {
-      folderIcon.addClass("fa-folder").removeClass("fa-folder-open");
-      $("#tax-calc-content").remove();
+      setTimeout(() => {
+        taxCalcFolderIcon.addClass("fa-folder").removeClass("fa-folder-open");
+        taxCalcFolderBody.detach();
+      });
     }
   });
-}
-/************ 帳號資訊 account info **************/
-/************************************************/
+});
 
-/************************************************/
-/************ 新創計劃 foundation plan ***********/
+Template.accountInfo.events({
+  "click [data-toggle-panel=tax-calc]"(event) {
+    event.preventDefault();
+    console.log("test");
+    taxCalcFolderExpandedVar.set(!taxCalcFolderExpandedVar.get());
+  },
+});
+
+// 在新創列表加入預計股價、個人股權資訊
+Template.foundationListCard.onRendered(() => {
+  function insertAfterLastRow(row) {
+    instance.$(".row-info").last().after(row);
+  }
+
+  const instance = Template.instance();
+
+  const infoRowSample = instance.$(".row-info").last();
+
+  const stockPriceRow = infoRowSample.clone();
+  stockPriceRow.find("p:eq(0)").html(t("foundationPlanStockPrice"));
+  insertAfterLastRow(stockPriceRow);
+
+  const personalStockAmountRow = infoRowSample.clone();
+  personalStockAmountRow.find("p:eq(0)").html(t("foundationPlanShare"));
+  insertAfterLastRow(personalStockAmountRow);
+
+  const personalStockRightRow = infoRowSample.clone();
+  personalStockRightRow.find("p:eq(0)").html(t("foundationPlanStock"));
+  insertAfterLastRow(personalStockRightRow);
+
+  instance.autorun(() => {
+    const foundationData = Template.currentData();
+    const totalFund = foundationData.invest.reduce((sum, {amount}) => sum + amount, 0);
+    const stockPrice = computeStockPriceFromTotalFund(totalFund);
+
+    const currentUserId = Meteor.userId();
+    const personalInvest = foundationData.invest.find(i => i.userId === currentUserId);
+    const personalFund = personalInvest ? personalInvest.amount : 0;
+    const personalStockAmount = Math.floor(personalFund / stockPrice);
+    const personalStockRight = personalFund / totalFund;
+
+    stockPriceRow.find("p:eq(1)").html(`$ ${stockPrice}`);
+    personalStockAmountRow.find("p:eq(1)").html(`${personalStockAmount} 股`);
+    personalStockRightRow.find("p:eq(1)").html(`${(personalStockRight * 100).toFixed(2)} %`);
+  });
+});
 
 // 從總投資額推算新創公司的預計股價
 function computeStockPriceFromTotalFund(totalFund) {
@@ -520,100 +471,6 @@ function computeStockPriceFromTotalFund(totalFund) {
   while (totalFund / 1000 > result) result *= 2;
   return Math.max(1, result / 2);
 }
-
-// 計算新創公司的額外資訊
-function computeAdditionalFoundationPlanInfo(i, inCardMode) {
-  // 個人投資額
-  const personalFund = Number(
-    inCardMode
-      ? $(".company-card-mask")[i].children[6].innerText.match(/[0-9]+/)[0]
-      : ($(`.media-body.row.border-grid-body:eq(${i}) .mb-1`)[0].innerText.match(/[0-9]+/) || [0])[0]
-  );
-
-  // 總投資額
-  const totalFund = Number(
-    inCardMode
-      ? $(".company-card-mask")[i].children[5].innerText.match(/[0-9]+/)[0]
-      : $(`.media-body.row.border-grid-body:eq(${i}) .col-8.col-lg-3.text-right.border-grid:eq(3)`)[0].innerText.match(/[0-9]+/)[0]
-  );
-
-  const stockPrice = computeStockPriceFromTotalFund(totalFund);   // 預計股價
-  const stockAmount = personalFund / stockPrice;                  // 預計持股
-  const stockRight = personalFund / totalFund;                    // 預計股權
-  return { stockPrice, stockAmount, stockRight };
-}
-
-// 計算該頁面新創公司的額外資訊並顯示
-function addAdditionalFoundationPlanInfo() {
-  const displayModeIcon = $(".btn.btn-secondary.mr-1 i");
-  const inCardMode = displayModeIcon.hasClass("fa-th");   // 是否以卡片模式顯示
-
-  const companies = $(inCardMode ? ".company-card-mask" : ".media-body.row.border-grid-body");
-  companies.each((i, e) => {
-    if ($(e).find("div[name=foundationPlanNewInfo]").length !== 0) return; // 已加入過資訊就略過
-
-    const { stockPrice, stockAmount, stockRight } = computeAdditionalFoundationPlanInfo(i, inCardMode);
-
-    if (inCardMode) {
-      $(e).find(".row-info").last().after(`
-        <div name="foundationPlanNewInfo" class="row row-info d-flex justify-content-between">
-          <p>${t("foundationPlanStockPrice")}</p>
-          <p>$${stockPrice}</p>
-        </div>
-        <div name="foundationPlanNewInfo" class="row row-info d-flex justify-content-between">
-          <p>${t("foundationPlanShare")}</p>
-          <p>${Math.floor(stockAmount)}股</p>
-        </div>
-        <div name="foundationPlanNewInfo" class="row row-info d-flex justify-content-between">
-          <p>${t("foundationPlanStock")}</p>
-          <p>${(stockRight * 100).toFixed(2)}%</p>
-        </div>
-      `);
-    } else {
-      $(e).find(".col-8.col-lg-3.text-right.border-grid:eq(3)").after(`
-        <div name="foundationPlanNewInfo" class="col-4 col-lg-6 text-right border-grid" />
-        <div name="foundationPlanNewInfo" class="col-4 col-lg-3 text-right border-grid">${t("foundationPlanStockPrice")}</div>
-        <div class="col-8 col-lg-3 text-right border-grid" id="customStockPrice${i}">$${stockPrice}</div>
-        <div name="foundationPlanNewInfo" class="col-4 col-lg-3 text-right border-grid">${t("foundationPlanShare")}</div>
-        <div class="col-8 col-lg-3 text-right border-grid" id="customStockAmount${i}">${Math.floor(stockAmount)}股</div>
-        <div name="foundationPlanNewInfo" class="col-4 col-lg-3 text-right border-grid">${t("foundationPlanStock")}</div>
-        <div class="col-8 col-lg-3 text-right border-grid" id="customStockRight${i}">${(stockRight * 100).toFixed(2)}%</div>
-      `);
-    }
-  });
-}
-
-// 監聽新創計劃搜尋欄的輸入
-function addFoundationPlanSearchInputListener() {
-  // 既有公司搜尋提示
-  $(".form-control")
-    .off("input", listExistingCompanies)  // 避免重複加入事件
-    .on("input", listExistingCompanies);
-}
-
-// 找尋並顯示在 jsonObj 裡已建檔的公司名冊
-function listExistingCompanies() {
-  $("#displayResult").remove(); // 移除舊有資料
-
-  const searchString = $(".form-control").val();
-  if (!searchString) return;  // 略過空資料
-
-  const searchRegExp = new RegExp(searchString, "i"); // ignore case
-
-  getJsonObj(jsonObj => {
-    // 找出名稱或 tag 符合的公司並顯示
-    const matchedCompanies = jsonObj.companys.filter(c => searchRegExp.test(c.companyName) || searchRegExp.test(c.companyTags));  // WTF is companys!?
-
-    $(`
-      <div id="displayResult" style="display: block; height: 100px; margin-top: 16px; overflow: scroll; overflow-x: hidden;">
-        <p>公司名冊更新於 ${jsonObj.updateTime}</p>
-        <p>${matchedCompanies.map(c => `<a href="${c.companyLink}">${c.companyName}</a>`).join(", ")}</p>
-      </div>
-    `).insertAfter($(".form-inline"));
-  });
-}
-/************ 新創計劃 foundation plan ***********/
-/************************************************/
 
 /***************************************/
 /************** 關於插件 ****************/
@@ -649,7 +506,7 @@ function showAboutScript() {
         </p>
         <hr>
         <p>有任何問題或建議請到Discord:ACGN Stock留言</p>
-        <p><a href="https://greasyfork.org/zh-TW/scripts/33359-acgn%E8%82%A1%E7%A5%A8%E7%B3%BB%E7%B5%B1%E6%AF%8F%E8%82%A1%E7%87%9F%E5%88%A9%E5%A4%96%E6%8E%9B" target="_blank">更新插件</a></p>
+        <p><a href="https://greasyfork.org/zh-TW/scripts/33814" target="_blank">更新插件</a></p>
       </div>
     </div>
 
@@ -680,6 +537,15 @@ function showAboutScript() {
 
 // 更新紀錄列表
 const releaseHistoryList = [
+  {
+    version: "3.000",
+    description: `
+      <p>幾乎全部打掉重練，使用更有效率的方式與頁面結合。</p>
+      <p><span class="text-info">股市總覽</span>新增顯示個股持有總值、本季營利、本益比、預計分紅、與經理薪水。</p>
+      <p><span class="text-info">帳號資訊</span>移除統計分紅功能，請使用<a href="https://greasyfork.org/zh-TW/scripts/33542">ACGN-stock營利統計外掛 by SoftwareSing</a>。</p>
+      <p><span class="text-info">新創計畫</span>暫時移除搜尋已存在公司功能（未來想辦法加回）。</p>
+    `,
+  },
   {
     version: "2.810",
     description: `<p><span class="text-info">股市總覽</span>與<span class="text-info">新創計劃</span>增加了跳頁功能，可直接跳至指定頁數。</p>`,
@@ -858,9 +724,19 @@ const dict = {
 /************* 語言相關 ****************/
 /**************************************/
 
-// 程式進入點
+// 換頁再回來
+function goAndBack(path) {
+  const oldPath = FlowRouter.current().path;
+  if (oldPath === path) return;
+  FlowRouter.go(path);
+  history.back();
+}
+
+// ======= 主程式 =======
+
+// 如果在其他頁，前往教學導覽再回來，讓 templates 重新產生並跑我們的 onRendered
 (function() {
-  observeLoadingOverlay();
+  goAndBack("/");
   setTimeout(addNavItems, 0);
   setTimeout(checkScriptUpdates, 0);
 })();
