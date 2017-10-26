@@ -402,39 +402,41 @@ function computeStockPriceFromTotalFund(totalFund) {
   return Math.max(1, result / 2);
 }
 
-// 新增按鈕至上面的導覽區
-function addNavItems() {
+// 新增插件功能按鈕至上面的導覽區
+function addPluginDropdownMenu() {
   // 所有按鍵插入在原來的第三個按鍵（主題配置）之後
   // 按鍵需要以倒序插入，後加的按鍵會排在左邊
   const insertionTarget = $(".note")[2];
 
   // 「關於插件」按鍵
-  $(`<li class="nav-item"><a class="nav-link" href="#" id="about-script">${t("aboutScript")}</a></li>`)
-    .insertAfter(insertionTarget);
-  $("#about-script").on("click", showAboutScript);
 
-  // 「選擇語言」按鍵
-  $(`
+
+  const pluginDropdown = $(`
     <div class="note">
       <li class="nav-item dropdown">
-        <a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown">${t("language")}</a>
-        <div class="dropdown-menu px-3" aria-labelledby="navbarDropdownMenuLink" style="display: none;" id="lang-menu"/>
+        <a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown">${t("pluginDropdown")}</a>
+        <div class="dropdown-menu px-3" aria-labelledby="navbarDropdownMenuLink" style="display: none;" id="lang-menu">
+          <a class="nav-link" href="#" id="block-ads">${t("blockAds")}</a>
+          <h6 class="dropdown-header" style="padding: 0.5rem 0rem">${t("language")}</h6>
+          <a class="nav-link" href="#" id="lang-tw">台灣話</a>
+          <a class="nav-link" href="#" id="lang-marstw">ㄏㄒㄨ</a>
+          <a class="nav-link" href="#" id="lang-en">English</a>
+          <a class="nav-link" href="#" id="lang-jp">日本語</a>
+          <div class="dropdown-divider"/>
+          <a class="nav-link" href="#" id="about-script">${t("aboutScript")}</a>
+        </div>
       </li>
     </div>
-  `).insertAfter(insertionTarget);
-  $("#lang-menu").append($(`
-    <li class="nav-item"><a class="nav-link" href="#" id="lang-tw">台灣話</a></li>
-    <li class="nav-item"><a class="nav-link" href="#" id="lang-marstw">ㄏㄒㄨ</a></li>
-    <li class="nav-item"><a class="nav-link" href="#" id="lang-en">English</a></li>
-    <li class="nav-item"><a class="nav-link" href="#" id="lang-jp">日本語</a></li>
-  `));
-  $("#lang-tw").on("click", () => { changeLanguage("tw"); });
-  $("#lang-marstw").on("click", () => { changeLanguage("marstw"); });
-  $("#lang-en").on("click", () => { changeLanguage("en"); });
-  $("#lang-jp").on("click", () => { changeLanguage("jp"); });
+  `);
+  pluginDropdown.insertAfter(insertionTarget);
+  pluginDropdown.find("#lang-tw").on("click", () => { changeLanguage("tw"); });
+  pluginDropdown.find("#lang-marstw").on("click", () => { changeLanguage("marstw"); });
+  pluginDropdown.find("#lang-en").on("click", () => { changeLanguage("en"); });
+  pluginDropdown.find("#lang-jp").on("click", () => { changeLanguage("jp"); });
+  pluginDropdown.find("#about-script").on("click", showAboutScript);
 
   // 「關閉廣告」按鍵
-  $(`<li class="nav-item"><a class="nav-link" href="#" id="block-ads">${t("blockAds")}</a></li>`)
+  $(`<li class="nav-item"></li>`)
     .insertAfter(insertionTarget);
   $("#block-ads").on("click", blockAds);
 }
@@ -656,6 +658,7 @@ function t(key) {
 // 翻譯表
 const dict = {
   tw: {
+    pluginDropdown: "%%go插件",
     language: "選擇語言",
     blockAds: "關閉廣告",
     aboutScript: "關於插件",
@@ -752,6 +755,6 @@ function goAndBack(path) {
 // 如果在其他頁，前往教學導覽再回來，讓 templates 重新產生並跑我們的 onRendered
 (function() {
   goAndBack("/");
-  setTimeout(addNavItems, 0);
+  setTimeout(addPluginDropdownMenu, 0);
   setTimeout(checkScriptUpdates, 0);
 })();
