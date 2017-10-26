@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ACGN股票系統每股營利外掛
 // @namespace    http://tampermonkey.net/
-// @version      3.002
+// @version      3.003
 // @description  try to take over the world!
 // @author       papago & Ming & frozenmouse
 // @match        http://acgn-stock.com/*
@@ -225,6 +225,10 @@ Template.companyListCard.onRendered(() => {
   peRatioRow.find("p:eq(0)").html("本益比");
   insertAfterLastRow(peRatioRow);
 
+  const peRatioInverseRow = infoRowSample.clone();
+  peRatioInverseRow.find("p:eq(0)").html("益本比");
+  insertAfterLastRow(peRatioInverseRow);
+
   const dividendRow = infoRowSample.clone();
   dividendRow.find("p:eq(0)").html("預計分紅");
   insertAfterLastRow(dividendRow);
@@ -240,6 +244,7 @@ Template.companyListCard.onRendered(() => {
 
     profitRow.find("p:eq(1)").html(`$ ${profit}`);
     peRatioRow.find("p:eq(1)").html(isFinite(peRatio) ? peRatio.toFixed(2) : "∞");
+    peRatioInverseRow.find("p:eq(1)").html((1 / peRatio).toFixed(2));
 
     if (!Meteor.user()) {
       hideRow(ownValueRow);
