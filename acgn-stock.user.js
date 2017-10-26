@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ACGN股票系統每股營利外掛
 // @namespace    http://tampermonkey.net/
-// @version      3.000
+// @version      3.001
 // @description  try to take over the world!
 // @author       papago & Ming & frozenmouse
 // @match        http://acgn-stock.com/*
@@ -28,6 +28,17 @@ const {dbVariables} = require("./db/dbVariables");
 const {dbCompanies} = require("./db/dbCompanies");
 const {dbDirectors} = require("./db/dbDirectors");
 
+// 判斷直到 condition 符合之後再執行 action
+function waitUntil(condition, action) {
+  setTimeout(function check() {
+    if (condition()) {
+      action();
+    } else {
+      setTimeout(check, 0);
+    }
+  }, 0);
+}
+
 // 用公司資訊算出 EPS 與本益比
 function computeEpsAndPeRatio({totalRelease, profit, listPrice}) {
   const eps = profit * 0.8075 / totalRelease;
@@ -35,6 +46,7 @@ function computeEpsAndPeRatio({totalRelease, profit, listPrice}) {
   return {eps, peRatio};
 }
 
+// 取得 Template 的 helpers
 Template.prototype.getHelper = function(name) {
   return this.__helpers[` ${name}`];
 };
@@ -42,7 +54,6 @@ Template.prototype.getHelper = function(name) {
 // 有分頁顯示時，插入跳頁表單
 Template.pagination.onRendered(() => {
   const targetPageVar = new ReactiveVar();
-  console.log("pagination onRendered");
   const instance = Template.instance();
   const jumpToPageForm = $(`
     <form id="jump-to-page-form" class="form-inline justify-content-center" autocomplete="off">
@@ -223,8 +234,7 @@ Template.companyListCard.onRendered(() => {
   insertAfterLastRow(managerSalaryRow);
 
   instance.autorun(() => {
-    // 取得存公司資料的 ReactiveVar，當有變動時會重跑一次 autorun 的 callback
-    const companyData = instance.view.parentView.dataVar.get();
+    const companyData = Template.currentData();
     const {_id: companyId, profit, totalRelease, listPrice, manager} = companyData;
     const {peRatio} = computeEpsAndPeRatio(companyData);
 
@@ -255,6 +265,142 @@ Template.companyListCard.onRendered(() => {
     }
   });
 });
+
+/************************************************/
+/************ 帳號資訊 account info **************/
+
+// 稅率表：資產上限、稅率、累進差額
+const taxRateTable = [
+  { asset: 10000, rate: 0.00, adjustment: 0 },
+  { asset: 100000, rate: 0.03, adjustment: 300 },
+  { asset: 500000, rate: 0.06, adjustment: 3300 },
+  { asset: 1000000, rate: 0.09, adjustment: 18300 },
+  { asset: 2000000, rate: 0.12, adjustment: 48300 },
+  { asset: 3000000, rate: 0.15, adjustment: 108300 },
+  { asset: 4000000, rate: 0.18, adjustment: 198300 },
+  { asset: 5000000, rate: 0.21, adjustment: 318300 },
+  { asset: 6000000, rate: 0.24, adjustment: 468300 },
+  { asset: 7000000, rate: 0.27, adjustment: 648300 },
+  { asset: 8000000, rate: 0.30, adjustment: 858300 },
+  { asset: 9000000, rate: 0.33, adjustment: 1098300 },
+  { asset: 10000000, rate: 0.36, adjustment: 1368300 },
+  { asset: 11000000, rate: 0.39, adjustment: 1668300 },
+  { asset: 12000000, rate: 0.42, adjustment: 1998300 },
+  { asset: 13000000, rate: 0.45, adjustment: 2358300 },
+  { asset: 14000000, rate: 0.48, adjustment: 2748300 },
+  { asset: 15000000, rate: 0.51, adjustment: 3168300 },
+  { asset: 16000000, rate: 0.54, adjustment: 3618300 },
+  { asset: 17000000, rate: 0.57, adjustment: 4098300 },
+  { asset: Infinity, rate: 0.60, adjustment: 4608300 },
+];
+
+// 控制稅金試算資料夾是否展開的 ReactiveVar
+const taxCalcFolderExpandedVar = new ReactiveVar(false);
+
+// 加入稅金試算資料夾
+Template.accountInfo.onRendered(() => {
+  console.log("accountInfo.onRendered()");
+  const instance = Template.instance();
+
+  const taxCalcFolderHead = $(`
+    <div class="col-12 border-grid">
+      <a class="d-block h4" href="" data-toggle-panel="tax-calc">
+        ${t("taxCalculation")} <i class="fa fa-folder"/>
+      </a>
+    </div>
+  `);
+  const taxCalcFolderIcon = taxCalcFolderHead.find("i.fa");
+  const taxCalcFolderBody = $(`
+    <div class="col-12 text-right border-grid">
+      <h5>${t("enterTotalAssets")}</h5>
+      <input class="form-control" type="number">
+      <h5>${t("yourTax")} <span id="tax-calc-output">$ 0</span></h5>
+    </div>
+  `);
+  const taxCalcInput = taxCalcFolderBody.find("input");
+  const taxCalcOutput = taxCalcFolderBody.find("span#tax-calc-output");
+
+  taxCalcInput.on("input", () => {
+    const input = Number(taxCalcInput.val().match(/[0-9]+/));
+    const { rate, adjustment } = taxRateTable.find(e => input < e.asset);
+    const output = Math.ceil(input * rate - adjustment);
+    taxCalcOutput.text(`$ ${output}`);
+  });
+
+  waitUntil(
+    () => instance.$(".card-block:last() .row").length > 0,
+    () => instance.$(".card-block:last() .row").append(taxCalcFolderHead));
+
+  instance.autorun(() => {
+    const taxCalcFolderExpanded = taxCalcFolderExpandedVar.get();
+
+    if (taxCalcFolderExpanded) {
+      setTimeout(() => {
+        taxCalcFolderIcon.addClass("fa-folder-open").removeClass("fa-folder");
+        taxCalcFolderBody.insertAfter(taxCalcFolderHead);
+      }, 0);
+    } else {
+      setTimeout(() => {
+        taxCalcFolderIcon.addClass("fa-folder").removeClass("fa-folder-open");
+        taxCalcFolderBody.detach();
+      });
+    }
+  });
+});
+
+Template.accountInfo.events({
+  "click [data-toggle-panel=tax-calc]"(event) {
+    event.preventDefault();
+    console.log("test");
+    taxCalcFolderExpandedVar.set(!taxCalcFolderExpandedVar.get());
+  },
+});
+
+// 在新創列表加入預計股價、個人股權資訊
+Template.foundationListCard.onRendered(() => {
+  function insertAfterLastRow(row) {
+    instance.$(".row-info").last().after(row);
+  }
+
+  const instance = Template.instance();
+
+  const infoRowSample = instance.$(".row-info").last();
+
+  const stockPriceRow = infoRowSample.clone();
+  stockPriceRow.find("p:eq(0)").html(t("foundationPlanStockPrice"));
+  insertAfterLastRow(stockPriceRow);
+
+  const personalStockAmountRow = infoRowSample.clone();
+  personalStockAmountRow.find("p:eq(0)").html(t("foundationPlanShare"));
+  insertAfterLastRow(personalStockAmountRow);
+
+  const personalStockRightRow = infoRowSample.clone();
+  personalStockRightRow.find("p:eq(0)").html(t("foundationPlanStock"));
+  insertAfterLastRow(personalStockRightRow);
+
+  instance.autorun(() => {
+    const foundationData = Template.currentData();
+    const totalFund = foundationData.invest.reduce((sum, {amount}) => sum + amount, 0);
+    const stockPrice = computeStockPriceFromTotalFund(totalFund);
+
+    const currentUserId = Meteor.userId();
+    const personalInvest = foundationData.invest.find(i => i.userId === currentUserId);
+    const personalFund = personalInvest ? personalInvest.amount : 0;
+    const personalStockAmount = Math.floor(personalFund / stockPrice);
+    const personalStockRight = personalFund / totalFund;
+
+    stockPriceRow.find("p:eq(1)").html(`$ ${stockPrice}`);
+    personalStockAmountRow.find("p:eq(1)").html(`${personalStockAmount} 股`);
+    personalStockRightRow.find("p:eq(1)").html(`${(personalStockRight * 100).toFixed(2)} %`);
+  });
+});
+
+// 從總投資額推算新創公司的預計股價
+function computeStockPriceFromTotalFund(totalFund) {
+  let result = 1;
+  while (totalFund / 1000 > result) result *= 2;
+  return Math.max(1, result / 2);
+}
 
 // 新增按鈕至上面的導覽區
 function addNavItems() {
@@ -340,137 +486,6 @@ function checkGreasyForkScriptUpdate(id) {
 /************ 腳本更新檢查 *************/
 /*************************************/
 
-/************************************************/
-/************ 帳號資訊 account info **************/
-
-// 稅率表：資產上限、稅率、累進差額
-const taxRateTable = [
-  { asset: 10000, rate: 0.00, adjustment: 0 },
-  { asset: 100000, rate: 0.03, adjustment: 300 },
-  { asset: 500000, rate: 0.06, adjustment: 3300 },
-  { asset: 1000000, rate: 0.09, adjustment: 18300 },
-  { asset: 2000000, rate: 0.12, adjustment: 48300 },
-  { asset: 3000000, rate: 0.15, adjustment: 108300 },
-  { asset: 4000000, rate: 0.18, adjustment: 198300 },
-  { asset: 5000000, rate: 0.21, adjustment: 318300 },
-  { asset: 6000000, rate: 0.24, adjustment: 468300 },
-  { asset: 7000000, rate: 0.27, adjustment: 648300 },
-  { asset: 8000000, rate: 0.30, adjustment: 858300 },
-  { asset: 9000000, rate: 0.33, adjustment: 1098300 },
-  { asset: 10000000, rate: 0.36, adjustment: 1368300 },
-  { asset: 11000000, rate: 0.39, adjustment: 1668300 },
-  { asset: 12000000, rate: 0.42, adjustment: 1998300 },
-  { asset: 13000000, rate: 0.45, adjustment: 2358300 },
-  { asset: 14000000, rate: 0.48, adjustment: 2748300 },
-  { asset: 15000000, rate: 0.51, adjustment: 3168300 },
-  { asset: 16000000, rate: 0.54, adjustment: 3618300 },
-  { asset: 17000000, rate: 0.57, adjustment: 4098300 },
-  { asset: Infinity, rate: 0.60, adjustment: 4608300 },
-];
-
-// 加入稅金試算資料夾
-const taxCalcFolderExpandedVar = new ReactiveVar(false);
-
-Template.accountInfo.onRendered(() => {
-  const instance = Template.instance();
-
-  const taxCalcFolderHead = $(`
-    <div class="col-12 border-grid">
-      <a class="d-block h4" href="" data-toggle-panel="tax-calc">
-        ${t("taxCalculation")} <i class="fa fa-folder"/>
-      </a>
-    </div>
-  `);
-  const taxCalcFolderIcon = taxCalcFolderHead.find("i.fa");
-  const taxCalcFolderBody = $(`
-    <div class="col-12 text-right border-grid">
-      <h5>${t("enterTotalAssets")}</h5>
-      <input class="form-control" type="number">
-      <h5>${t("yourTax")} <span id="tax-calc-output">$ 0</span></h5>
-    </div>
-  `);
-  const taxCalcInput = taxCalcFolderBody.find("input");
-  const taxCalcOutput = taxCalcFolderBody.find("span#tax-calc-output");
-
-  taxCalcInput.on("input", () => {
-    const input = Number(taxCalcInput.val().match(/[0-9]+/));
-    const { rate, adjustment } = taxRateTable.find(e => input < e.asset);
-    const output = Math.ceil(input * rate - adjustment);
-    taxCalcOutput.text(`$ ${output}`);
-  });
-
-  setTimeout(() => instance.$(".card-block:eq(1) .row").append(taxCalcFolderHead), 0);
-
-  instance.autorun(() => {
-    const taxCalcFolderExpanded = taxCalcFolderExpandedVar.get();
-
-    if (taxCalcFolderExpanded) {
-      setTimeout(() => {
-        taxCalcFolderIcon.addClass("fa-folder-open").removeClass("fa-folder");
-        taxCalcFolderBody.insertAfter(taxCalcFolderHead);
-      }, 0);
-    } else {
-      setTimeout(() => {
-        taxCalcFolderIcon.addClass("fa-folder").removeClass("fa-folder-open");
-        taxCalcFolderBody.detach();
-      });
-    }
-  });
-});
-
-Template.accountInfo.events({
-  "click [data-toggle-panel=tax-calc]"(event) {
-    event.preventDefault();
-    console.log("test");
-    taxCalcFolderExpandedVar.set(!taxCalcFolderExpandedVar.get());
-  },
-});
-
-// 在新創列表加入預計股價、個人股權資訊
-Template.foundationListCard.onRendered(() => {
-  function insertAfterLastRow(row) {
-    instance.$(".row-info").last().after(row);
-  }
-
-  const instance = Template.instance();
-
-  const infoRowSample = instance.$(".row-info").last();
-
-  const stockPriceRow = infoRowSample.clone();
-  stockPriceRow.find("p:eq(0)").html(t("foundationPlanStockPrice"));
-  insertAfterLastRow(stockPriceRow);
-
-  const personalStockAmountRow = infoRowSample.clone();
-  personalStockAmountRow.find("p:eq(0)").html(t("foundationPlanShare"));
-  insertAfterLastRow(personalStockAmountRow);
-
-  const personalStockRightRow = infoRowSample.clone();
-  personalStockRightRow.find("p:eq(0)").html(t("foundationPlanStock"));
-  insertAfterLastRow(personalStockRightRow);
-
-  instance.autorun(() => {
-    const foundationData = Template.currentData();
-    const totalFund = foundationData.invest.reduce((sum, {amount}) => sum + amount, 0);
-    const stockPrice = computeStockPriceFromTotalFund(totalFund);
-
-    const currentUserId = Meteor.userId();
-    const personalInvest = foundationData.invest.find(i => i.userId === currentUserId);
-    const personalFund = personalInvest ? personalInvest.amount : 0;
-    const personalStockAmount = Math.floor(personalFund / stockPrice);
-    const personalStockRight = personalFund / totalFund;
-
-    stockPriceRow.find("p:eq(1)").html(`$ ${stockPrice}`);
-    personalStockAmountRow.find("p:eq(1)").html(`${personalStockAmount} 股`);
-    personalStockRightRow.find("p:eq(1)").html(`${(personalStockRight * 100).toFixed(2)} %`);
-  });
-});
-
-// 從總投資額推算新創公司的預計股價
-function computeStockPriceFromTotalFund(totalFund) {
-  let result = 1;
-  while (totalFund / 1000 > result) result *= 2;
-  return Math.max(1, result / 2);
-}
 
 /***************************************/
 /************** 關於插件 ****************/
