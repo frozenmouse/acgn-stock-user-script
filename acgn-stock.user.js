@@ -658,7 +658,7 @@ function t(key) {
 // 翻譯表
 const dict = {
   tw: {
-    pluginDropdown: "%%go插件",
+    pluginDropdown: "papago插件",
     language: "選擇語言",
     blockAds: "關閉廣告",
     aboutScript: "關於插件",
@@ -679,6 +679,7 @@ const dict = {
     goToCompany: "前往",
   },
   en: {
+    pluginDropdown: "papago Plugin",
     language: "language",
     blockAds: "Block Ad",
     aboutScript: "About Script",
@@ -699,6 +700,7 @@ const dict = {
     goToCompany: "Go to company ",
   },
   jp: {
+    pluginDropdown: "papago プラグイン",
     language: "言語を選択",
     blockAds: "広告を閉じる",
     aboutScript: "プラグインについて",
@@ -719,6 +721,7 @@ const dict = {
     goToCompany: "前往",
   },
   marstw: {
+    pluginDropdown: "%%狗ㄉ外掛",
     language: "顯4ㄉ語言",
     blockAds: "關ㄅ廣告",
     aboutScript: "我做ㄌ什麼",
