@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ACGN股票系統每股營利外掛
 // @namespace    http://tampermonkey.net/
-// @version      3.003
+// @version      3.100
 // @description  try to take over the world!
 // @author       papago & Ming & frozenmouse
 // @match        http://acgn-stock.com/*
@@ -49,6 +49,14 @@ function computeEpsAndPeRatio({totalRelease, profit, listPrice}) {
 // 取得 Template 的 helpers
 Template.prototype.getHelper = function(name) {
   return this.__helpers[` ${name}`];
+};
+
+// 在添加 onRendered callback 時一併記錄起來
+Template.prototype.oldOnRendered = Template.prototype.onRendered;
+Template.prototype.onRendered = function(callback) {
+  this.customOnRenderedCallbacks = this.customOnRenderedCallbacks || [];
+  this.customOnRenderedCallbacks.push(callback);
+  this.oldOnRendered(callback);
 };
 
 // 有分頁顯示時，插入跳頁表單
@@ -750,12 +758,18 @@ const dict = {
 /************* 語言相關 ****************/
 /**************************************/
 
+// 手動觸發頂層內容 View 的 onRendered
+function triggerCurrentPageContentViewCustomOnRendered() {
+  const view = Blaze.getView($("#main").children(":not(nav)")[0]);
+  const callbacks = view.template.customOnRenderedCallbacks || [];
+  callbacks.forEach(callback => Template._withTemplateInstanceFunc(view.templateInstance, callback));
+}
+
 // ======= 主程式 =======
 
 // 如果在其他頁，前往教學導覽再回來，讓 templates 重新產生並跑我們的 onRendered
 (function() {
-  console.log(`current route: ${FlowRouter.getRouteName()}`);
-  console.log($("#main").children().not("nav"));
-  setTimeout(addPluginDropdownMenu, 0);
-  setTimeout(checkScriptUpdates, 0);
+  triggerCurrentPageContentViewCustomOnRendered();
+  addPluginDropdownMenu();
+  checkScriptUpdates();
 })();

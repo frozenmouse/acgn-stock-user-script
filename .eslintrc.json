@@ -11,6 +11,7 @@
     "FlowRouter": true,
     "Template": true,
     "Meteor": true,
+    "Blaze": true,
     "require": true
   },
   "extends": "eslint:recommended",
