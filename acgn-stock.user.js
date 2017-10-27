@@ -750,19 +750,12 @@ const dict = {
 /************* 語言相關 ****************/
 /**************************************/
 
-// 換頁再回來
-function goAndBack(path) {
-  const oldPath = FlowRouter.current().path;
-  if (oldPath === path) return;
-  FlowRouter.go(path);
-  history.back();
-}
-
 // ======= 主程式 =======
 
 // 如果在其他頁，前往教學導覽再回來，讓 templates 重新產生並跑我們的 onRendered
 (function() {
-  goAndBack("/");
+  console.log(`current route: ${FlowRouter.getRouteName()}`);
+  console.log($("#main").children().not("nav"));
   setTimeout(addPluginDropdownMenu, 0);
   setTimeout(checkScriptUpdates, 0);
 })();
