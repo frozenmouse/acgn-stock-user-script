@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ACGN股票系統每股營利外掛
 // @namespace    http://tampermonkey.net/
-// @version      3.100
+// @version      3.200
 // @description  try to take over the world!
 // @author       papago & Ming & frozenmouse
 // @match        http://acgn-stock.com/*
@@ -51,12 +51,19 @@ Template.prototype.getHelper = function(name) {
   return this.__helpers[` ${name}`];
 };
 
-// 在添加 onRendered callback 時一併記錄起來
+// 包裝 Template 的 onRendered，加入自訂動作
 Template.prototype.oldOnRendered = Template.prototype.onRendered;
 Template.prototype.onRendered = function(callback) {
+  // 在添加 onRendered callback 時一併記錄起來
   this.customOnRenderedCallbacks = this.customOnRenderedCallbacks || [];
   this.customOnRenderedCallbacks.push(callback);
-  this.oldOnRendered(callback);
+
+  // 在真正執行到 callback 之後記錄起來
+  this.oldOnRendered(() => {
+    const instance = Template.instance();
+    callback();
+    instance.customOnRenderedCalled = true;
+  });
 };
 
 // 有分頁顯示時，插入跳頁表單
@@ -123,8 +130,10 @@ Template.pagination.onRendered(() => {
         .val(activePage)
         .attr("max", totalPages);
 
-      // nav 不會馬上出現，需要 setTimeout 延後
-      setTimeout(() => instance.$("nav").append(jumpToPageForm), 0);
+      // nav 不會馬上出現，需要延後
+      waitUntil(
+        () => instance.$("nav").length > 0,
+        () => instance.$("nav").append(jumpToPageForm));
     }
   });
 });
@@ -421,9 +430,6 @@ function addPluginDropdownMenu() {
   // 按鍵需要以倒序插入，後加的按鍵會排在左邊
   const insertionTarget = $(".note")[2];
 
-  // 「關於插件」按鍵
-
-
   const pluginDropdown = $(`
     <div class="note">
       <li class="nav-item dropdown">
@@ -447,11 +453,7 @@ function addPluginDropdownMenu() {
   pluginDropdown.find("#lang-en").on("click", () => { changeLanguage("en"); });
   pluginDropdown.find("#lang-jp").on("click", () => { changeLanguage("jp"); });
   pluginDropdown.find("#about-script").on("click", showAboutScript);
-
-  // 「關閉廣告」按鍵
-  $(`<li class="nav-item"></li>`)
-    .insertAfter(insertionTarget);
-  $("#block-ads").on("click", blockAds);
+  pluginDropdown.find("#block-ads").on("click", blockAds);
 }
 
 // 對所有廣告點擊關閉
@@ -758,18 +760,60 @@ const dict = {
 /************* 語言相關 ****************/
 /**************************************/
 
-// 手動觸發頂層內容 View 的 onRendered
-function triggerCurrentPageContentViewCustomOnRendered() {
-  const view = Blaze.getView($("#main").children(":not(nav)")[0]);
-  const callbacks = view.template.customOnRenderedCallbacks || [];
-  callbacks.forEach(callback => Template._withTemplateInstanceFunc(view.templateInstance, callback));
+// 將重複的陣列元素去掉後回傳
+Array.prototype.unique = function() {
+  return [...new Set(this)];
+};
+
+function findAncestorViews(view) {
+  if (!view.parentView) return [];
+
+  const ancestorViews = [];
+  let ancestorView = view.parentView;
+  while (ancestorView) {
+    ancestorViews.push(ancestorView);
+    ancestorView = ancestorView.parentView;
+  }
+  return ancestorViews;
+}
+
+// 手動觸發新加入的 onRendered
+function manuallyTriggerCustomOnRendered() {
+  function check() {
+    $("*").toArray()
+      .map(e => Blaze.getView(e))
+      .flatMap(v => v ? [v, ...findAncestorViews(v)] : [])
+      .forEach(view => {
+        if (!view || !view.templateInstance) return;
+
+        const instance = view.templateInstance();
+        const callbacks = view.template.customOnRenderedCallbacks || [];
+
+        if (callbacks.length === 0 || instance.customOnRenderedCalled) return;
+
+        console.log("call custom onRendered", instance);
+        callbacks.forEach(callback => Template._withTemplateInstanceFunc(view.templateInstance, callback));
+        instance.customOnRenderedCalled = true;
+      });
+  }
+
+  const loopInterval = 500;
+  const loopLimit = 5;
+  let loopCount = 0;
+
+  check();
+  const intervalHandle = setInterval(() => {
+    check();
+    loopCount++;
+    if (loopCount > loopLimit) {
+      clearInterval(intervalHandle);
+    }
+  } , loopInterval);
 }
 
 // ======= 主程式 =======
-
-// 如果在其他頁，前往教學導覽再回來，讓 templates 重新產生並跑我們的 onRendered
 (function() {
-  triggerCurrentPageContentViewCustomOnRendered();
+  manuallyTriggerCustomOnRendered();
   addPluginDropdownMenu();
   checkScriptUpdates();
 })();
