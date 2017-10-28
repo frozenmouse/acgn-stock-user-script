@@ -760,11 +760,6 @@ const dict = {
 /************* 語言相關 ****************/
 /**************************************/
 
-// 將重複的陣列元素去掉後回傳
-Array.prototype.unique = function() {
-  return [...new Set(this)];
-};
-
 function findAncestorViews(view) {
   if (!view.parentView) return [];
 
