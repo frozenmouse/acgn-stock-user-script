@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ACGN股票系統每股營利外掛
 // @namespace    http://tampermonkey.net/
-// @version      3.200
+// @version      3.201
 // @description  try to take over the world!
 // @author       papago & Ming & frozenmouse
 // @match        http://acgn-stock.com/*
@@ -41,7 +41,7 @@ function waitUntil(condition, action) {
 
 // 用公司資訊算出 EPS 與本益比
 function computeEpsAndPeRatio({totalRelease, profit, listPrice}) {
-  const eps = profit * 0.8075 / totalRelease;
+  const eps = profit * 0.8 / totalRelease;
   const peRatio = listPrice / eps;
   return {eps, peRatio};
 }
@@ -273,7 +273,7 @@ Template.companyListCard.onRendered(() => {
       ownValueRow.find("p:eq(1)").html(`$ ${ownValue}`);
       showRow(ownValueRow);
 
-      const dividend = Math.round(profit * 0.8075 * stockAmount / totalRelease);
+      const dividend = Math.round(profit * 0.8 * stockAmount / totalRelease);
       dividendRow.find("p:eq(1)").html(`$ ${dividend}`);
       showRow(dividendRow);
 
