@@ -102,6 +102,7 @@ Template.pagination.onRendered(() => {
 
     // 目標頁面不超過上下限
     const targetPage = Math.max(1, Math.min(targetPageVar.get(), totalPages));
+    targetPageVar.set(undefined); // 清空上次表單送出的頁數
 
     if (!targetPage) return;
 
@@ -124,7 +125,6 @@ Template.pagination.onRendered(() => {
     if (haveData()) {
       // 分頁條目前選擇的頁面
       const activePage = pages().find(p => /active/.test(pageItemClass(p)));
-      console.log(`activePage: ${activePage} / ${totalPages}`);
 
       jumpToPageForm.find("input[name=page]")
         .val(activePage)
