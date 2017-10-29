@@ -467,6 +467,7 @@ function blockAds() {
 // 腳本檢查更新的週期
 const updateScriptCheckInterval = 600000; // 10 分鐘
 
+
 // 檢查腳本是否有更新
 function checkScriptUpdates() {
   checkGreasyForkScriptUpdate("33359"); // papago 版
@@ -477,6 +478,15 @@ function checkScriptUpdates() {
   setTimeout(checkScriptUpdates, updateScriptCheckInterval);
 }
 
+// 將版本號字串拆解成 major, minor, patch
+function parseVersion(versionString) {
+  const [head, rest] = versionString.split(".");
+  const major = Number.parseInt(head);
+  const minor = Number.parseInt(rest.substring(0, 1));
+  const patch = Number.parseInt(rest.substring(1));
+  return {major, minor, patch};
+}
+
 // 檢查 GreasyFork 上特定 id 的腳本是否有更新
 function checkGreasyForkScriptUpdate(id) {
   const scriptUrl = `https://greasyfork.org/zh-TW/scripts/${id}`;
@@ -484,13 +494,16 @@ function checkGreasyForkScriptUpdate(id) {
 
   request.open("GET", `${scriptUrl}.json`);
   request.addEventListener("load", function() {
-    const remoteVersion = JSON.parse(this.responseText).version;
-    const localVersion = GM_info.script.version;
+    const remoteVersion = parseVersion(JSON.parse(this.responseText).version);
+    const localVersion = parseVersion(GM_info.script.version);
 
-    console.log(`檢查 GreasyFork 腳本版本：id = ${id}, remoteVersion = ${remoteVersion}, localVersion = ${localVersion}`);
+    console.log(`檢查 GreasyFork 腳本版本：id = ${id}, remoteVersion = ${JSON.stringify(remoteVersion)}, localVersion = ${JSON.stringify(localVersion)}`);
 
-    // 版本號 a.bcc，只有 a 或 b 變動才通知更新
-    if (remoteVersion.substr(0, 3) > localVersion.substr(0, 3) && $(`update-script-button-greasy-${id}`).length === 0) {
+    // 只有 major 或 minor 變動才通知更新
+    const isUpdateNeeded = remoteVersion.major > localVersion.major
+      || (remoteVersion.major === localVersion.major && remoteVersion.minor > localVersion.minor);
+
+    if (isUpdateNeeded && $(`#update-script-button-greasy-${id}`).length === 0) {
       $(`
         <li class="nav-item">
           <a class="nav-link btn btn-primary" href="${scriptUrl}" id="update-script-button-greasy-${id}" target="_blank">${t("updateScript")}</a>
