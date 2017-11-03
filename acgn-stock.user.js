@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ACGN股票系統每股營利外掛
 // @namespace    http://tampermonkey.net/
-// @version      3.400
+// @version      3.401
 // @description  try to take over the world!
 // @author       papago & Ming & frozenmouse
 // @match        http://acgn-stock.com/*
@@ -140,7 +140,6 @@ Template.pagination.onRendered(() => {
 Template.pagination.events({
   "click #jump-to-page-form button"(event) {
     event.preventDefault();
-    console.log("click!");
     return false; // 停止往上傳遞事件，避免觸發原本其他的 'click button'
   },
 });
