@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ACGN股票系統每股營利外掛
 // @namespace    http://tampermonkey.net/
-// @version      3.401
+// @version      3.500
 // @description  try to take over the world!
 // @author       papago & Ming & frozenmouse
 // @match        http://acgn-stock.com/*
@@ -94,6 +94,10 @@ Template.pagination.onRendered(() => {
     return false; // 避免系統預設的送出事件
   });
 
+  jumpToPageForm.find("button").click(event => {
+    event.stopPropagation();  // 防止觸發上層的 'click button' Template event
+  });
+
   // 接收 targetPageVar -> 跳頁或設定 data.offset
   instance.autorun(() => {
     const data = Template.currentData();
@@ -136,12 +140,6 @@ Template.pagination.onRendered(() => {
         () => instance.$("nav").append(jumpToPageForm));
     }
   });
-});
-Template.pagination.events({
-  "click #jump-to-page-form button"(event) {
-    event.preventDefault();
-    return false; // 停止往上傳遞事件，避免觸發原本其他的 'click button'
-  },
 });
 
 // 附加顯示每股營利、本益比、益本比在數據資訊
