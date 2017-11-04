@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ACGN股票系統每股營利外掛
 // @namespace    http://tampermonkey.net/
-// @version      3.500
+// @version      3.600
 // @description  try to take over the world!
 // @author       papago & Ming & frozenmouse
 // @match        http://acgn-stock.com/*
@@ -41,7 +41,7 @@ function waitUntil(condition, action) {
 
 // 用公司資訊算出 EPS 與本益比
 function computeEpsAndPeRatio({totalRelease, profit, listPrice}) {
-  const eps = profit * 0.8 / totalRelease;
+  const eps = profit * 0.75 / totalRelease;
   const peRatio = listPrice / eps;
   return {eps, peRatio};
 }
@@ -139,54 +139,6 @@ Template.pagination.onRendered(() => {
         () => instance.$("nav").length > 0,
         () => instance.$("nav").append(jumpToPageForm));
     }
-  });
-});
-
-// 附加顯示每股營利、本益比、益本比在數據資訊
-Template.companyDetailTable.onRendered(() => {
-  const instance = Template.instance();
-  const isDisplayPanel = Template.companyDetailTable.getHelper("isDisplayPanel");
-
-  const dataCellsSample = $(`
-    <div class="col-4 col-md-2 col-lg-2 text-right border-grid"/>
-    <div class="col-8 col-md-4 col-lg-2 text-right border-grid"/>
-  `);
-
-  const epsDataCells = dataCellsSample.clone();
-  epsDataCells.filter("div:eq(0)").html(t("earnPerShare"));
-
-  const peRatioCells = dataCellsSample.clone();
-  peRatioCells.filter("div:eq(0)").html(t("PERatio"));
-
-  const epRatioCells = dataCellsSample.clone();
-  epRatioCells.filter("div:eq(0)").html(t("benefitRatio"));
-
-  const additionalDataList = [epsDataCells, peRatioCells, epRatioCells];
-
-  instance.autorun(() => {
-    const companyId = FlowRouter.getParam("companyId");
-    const companyData = dbCompanies.findOne({_id: companyId});
-    if (!companyData) return;
-
-    const {eps, peRatio} = computeEpsAndPeRatio(companyData);
-    epsDataCells.filter("div:eq(1)").html(`$ ${eps.toFixed(2)}`);
-    peRatioCells.filter("div:eq(1)").html(isFinite(peRatio) ? peRatio.toFixed(2) : "∞");
-    epRatioCells.filter("div:eq(1)").html((1 / peRatio).toFixed(2));
-
-    if (isDisplayPanel("numbers")) {
-      setTimeout(() => {
-        additionalDataList.forEach(e => {
-          // 附加在數據資訊展開後的最後一個元素後面
-          instance.$("[data-toggle-panel=numbers]")
-            .parent().nextUntil(".col-12").last()
-            .after(e);
-        });
-      }, 0);
-    } else {
-      additionalDataList.forEach(e => e.detach());
-    }
-
-    console.log(`numbers panel opened: ${isDisplayPanel("numbers")}`);
   });
 });
 
