@@ -1,11 +1,12 @@
 // ==UserScript==
 // @name         ACGN股票系統每股營利外掛
 // @namespace    http://tampermonkey.net/
-// @version      3.600
+// @version      3.700
 // @description  try to take over the world!
 // @author       papago & Ming & frozenmouse
 // @match        http://acgn-stock.com/*
 // @match        https://acgn-stock.com/*
+// @match        https://test.acgn-stock.com/*
 // @grant        none
 // ==/UserScript==
 
@@ -24,7 +25,6 @@
  * （參見 checkScriptUpdates()）
  */
 
-const {dbVariables} = require("./db/dbVariables");
 const {dbCompanies} = require("./db/dbCompanies");
 const {dbDirectors} = require("./db/dbDirectors");
 
@@ -65,82 +65,6 @@ Template.prototype.onRendered = function(callback) {
     instance.customOnRenderedCalled = true;
   });
 };
-
-// 有分頁顯示時，插入跳頁表單
-Template.pagination.onRendered(() => {
-  const targetPageVar = new ReactiveVar();
-  const instance = Template.instance();
-  const jumpToPageForm = $(`
-    <form id="jump-to-page-form" class="form-inline justify-content-center" autocomplete="off">
-      <div class="form-group">
-        <div class="input-group">
-          <span class="input-group-addon">跳至頁數</span>
-          <input class="form-control" type="number" min="1" name="page"
-            placeholder="請指定頁數…" maxlength="4" autocomplete="off"/>
-          <span class="input-group-btn">
-            <button class="btn btn-primary">
-              走！
-            </button>
-          </span>
-        </div>
-      </div>
-    </form>
-  `);
-
-  // 表單送出 -> 設定 targetPageVar
-  jumpToPageForm.submit(() => {
-    const targetPage = Number(jumpToPageForm.find("input[name=page]").val());
-    targetPageVar.set(targetPage);
-    return false; // 避免系統預設的送出事件
-  });
-
-  jumpToPageForm.find("button").click(event => {
-    event.stopPropagation();  // 防止觸發上層的 'click button' Template event
-  });
-
-  // 接收 targetPageVar -> 跳頁或設定 data.offset
-  instance.autorun(() => {
-    const data = Template.currentData();
-    const totalCount = dbVariables.get(data.useVariableForTotalCount);
-    const totalPages = Math.ceil(totalCount / data.dataNumberPerPage);
-
-    // 目標頁面不超過上下限
-    const targetPage = Math.max(1, Math.min(targetPageVar.get(), totalPages));
-    targetPageVar.set(undefined); // 清空上次表單送出的頁數
-
-    if (!targetPage) return;
-
-    if (data.useHrefRoute) {
-      FlowRouter.go(FlowRouter.path(FlowRouter.getRouteName(), {page: targetPage}));
-    } else {
-      data.offset.set((targetPage - 1) * data.dataNumberPerPage);
-    }
-  });
-
-  // 接收 data -> 處理表單顯示
-  instance.autorun(() => {
-    const data = Template.currentData();
-    const totalCount = dbVariables.get(data.useVariableForTotalCount);
-    const totalPages = Math.ceil(totalCount / data.dataNumberPerPage);
-    const haveData = Template.pagination.getHelper("haveData").bind(data);
-    const pages = Template.pagination.getHelper("pages").bind(data);
-    const pageItemClass = Template.pagination.getHelper("pageItemClass").bind(data);
-
-    if (haveData()) {
-      // 分頁條目前選擇的頁面
-      const activePage = pages().find(p => /active/.test(pageItemClass(p)));
-
-      jumpToPageForm.find("input[name=page]")
-        .val(activePage)
-        .attr("max", totalPages);
-
-      // nav 不會馬上出現，需要延後
-      waitUntil(
-        () => instance.$("nav").length > 0,
-        () => instance.$("nav").append(jumpToPageForm));
-    }
-  });
-});
 
 // 計算該頁面所持有的股票總額並顯示
 Template.companyList.onRendered(() => {
