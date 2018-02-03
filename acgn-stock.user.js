@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ACGN股票系統每股營利外掛
 // @namespace    http://tampermonkey.net/
-// @version      3.800
+// @version      3.900
 // @description  try to take over the world!
 // @author       papago & Ming & frozenmouse
 // @match        http://acgn-stock.com/*
@@ -128,7 +128,7 @@ Template.companyListCard.onRendered(() => {
     const {_id: companyId, profit, totalRelease, listPrice, manager} = companyData;
     const {peRatio} = computeEpsAndPeRatio(companyData);
 
-    profitRow.find("p:eq(1)").html(`$ ${profit}`);
+    profitRow.find("p:eq(1)").html(`$ ${Math.round(profit)}`);
     peRatioRow.find("p:eq(1)").html(isFinite(peRatio) ? peRatio.toFixed(2) : "∞");
     peRatioInverseRow.find("p:eq(1)").html((1 / peRatio).toFixed(2));
 
